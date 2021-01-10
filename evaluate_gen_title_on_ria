@@ -1,0 +1,5 @@
+python3 evaluation/evaluate_gen_title.py \
+    --pred-out-file ria.pred \
+    --config-file configs/gen_title.jsonnet \
+    --eval-model-file models/gen_title \
+    --test-file /Users/leshanbog/Documents/dataset/ria/lil_ria.json

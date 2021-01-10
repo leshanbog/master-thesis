@@ -3,12 +3,12 @@ import json
 import random
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
-from transformers import AutoTokenizer, EncoderDecoderModel, Trainer, TrainingArguments, logging
+from transformers import AutoTokenizer, EncoderDecoderModel, PreTrainedModel, PretrainedConfig, \
+    Trainer, TrainingArguments, logging
 
-from purano.readers.tg_jsonl import parse_tg_jsonl
-from purano.training.datasets import GenTitleDataset
-from purano.training.models import BottleneckEncoderDecoderModel
-from purano.util import get_true_file
+from readers.ria_reader import ria_reader
+from datasets.gen_title_dataset import GenTitleDataset
+from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 
 
 def train_gen_title(
@@ -22,17 +22,13 @@ def train_gen_title(
     from_pretrained: str = None,
     checkpoint: str = None
 ):
-    train_file = get_true_file(train_file)
-    val_file = get_true_file(val_file)
-    assert train_file.endswith(".jsonl")
-    assert val_file.endswith(".jsonl")
     logging.set_verbosity_info()
 
     config = json.loads(jsonnet_evaluate_file(config_file))
 
     print("Fetching data...")
-    train_records = [r for r in parse_tg_jsonl(train_file) if random.random() <= train_sample_rate]
-    val_records = [r for r in parse_tg_jsonl(val_file) if random.random() <= val_sample_rate]
+    train_records = [r for r in ria_reader(train_file) if random.random() <= train_sample_rate]
+    val_records = [r for r in ria_reader(val_file) if random.random() <= val_sample_rate]
 
     print("Building datasets...")
     model_path = config.pop("model_path")
@@ -68,11 +64,12 @@ def train_gen_title(
     learning_rate = config.pop("learning_rate", 5e-05)
     warmup_steps = config.pop("warmup_steps", 2000)
     num_train_epochs = config.pop("num_train_epochs", 5)
+
     training_args = TrainingArguments(
         output_dir=output_model_path,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        evaluate_during_training=True,
+        evaluation_strategy='epoch',
         do_train=True,
         do_eval=True,
         overwrite_output_dir=False,

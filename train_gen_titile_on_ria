@@ -1,0 +1,4 @@
+python3 training/train_gen_title.py \
+    --config-file configs/gen_title.jsonnet \
+    --train-file /Users/leshanbog/Documents/dataset/ria/lil_ria.json \
+    --val-file /Users/leshanbog/Documents/dataset/ria/lil_ria.json
