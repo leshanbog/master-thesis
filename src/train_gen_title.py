@@ -11,6 +11,33 @@ from readers.ria_reader import ria_reader
 from datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 
+from torch import nn
+import copy
+
+def leave_n_encoder_layers(model, n):  # must pass in the full bert model
+    oldModuleList = model.encoder.encoder.layer
+    newModuleList = nn.ModuleList()
+
+    for i in range(n):
+        newModuleList.append(oldModuleList[i])
+
+    copyOfModel = copy.deepcopy(model)
+    copyOfModel.encoder.encoder.layer = newModuleList
+
+    return copyOfModel
+
+def leave_n_decoder_layers(model, n):  # must pass in the full bert model
+    oldModuleList = model.decoder.bert.encoder.layer
+    newModuleList = nn.ModuleList()
+
+    for i in range(n):
+        newModuleList.append(oldModuleList[i])
+
+    copyOfModel = copy.deepcopy(model)
+    model.decoder.bert.encoder.layer = newModuleList
+
+    return copyOfModel
+
 
 def train_gen_title(
     config_file: str,
@@ -56,6 +83,11 @@ def train_gen_title(
         model = cls.from_pretrained(from_pretrained)
     else:
         model = cls.from_encoder_decoder_pretrained(model_path, model_path)
+        
+    model.config.encoder.num_hidden_layers = config['encoder'].get('num_hidden_layers', 8)
+    model.config.decoder.num_hidden_layers = config['decoder'].get('num_hidden_layers', 6)
+    model = leave_n_decoder_layers(model, model.config.decoder.num_hidden_layers)
+    model = leave_n_encoder_layers(model, model.config.encoder.num_hidden_layers)
 
     print("Training model...")
     batch_size = config.pop("batch_size", 8)

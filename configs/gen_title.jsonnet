@@ -8,5 +8,11 @@
     "logging_steps": 100,
     "learning_rate": 0.00005,
     "warmup_steps": 2000,
-    "num_train_epochs": 1
+    "num_train_epochs": 1,
+    "decoder": {
+        "num_hidden_layers": 8,
+    },
+    "encoder": {
+        "num_hidden_layers": 6,
+    },
 }
