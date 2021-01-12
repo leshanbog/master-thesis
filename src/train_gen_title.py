@@ -1,6 +1,7 @@
 import argparse
 import json
 import random
+import tqdm
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import AutoTokenizer, EncoderDecoderModel, PreTrainedModel, PretrainedConfig, \
@@ -27,8 +28,8 @@ def train_gen_title(
     config = json.loads(jsonnet_evaluate_file(config_file))
 
     print("Fetching data...")
-    train_records = [r for r in ria_reader(train_file) if random.random() <= train_sample_rate]
-    val_records = [r for r in ria_reader(val_file) if random.random() <= val_sample_rate]
+    train_records = [r for r in tqdm.tqdm(ria_reader(train_file)) if random.random() <= train_sample_rate]
+    val_records = [r for r in tqdm.tqdm(ria_reader(val_file)) if random.random() <= val_sample_rate]
 
     print("Building datasets...")
     model_path = config.pop("model_path")

@@ -1,6 +1,6 @@
 {
-    "model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
-    "max_tokens_text": 196,
+    "model_path": "/data/aobuhtijarov/models/rubert_cased_L-12_H-768_A-12_pt",
+    "max_tokens_text": 100,
     "max_tokens_title": 48,
     "batch_size": 4,
     "eval_steps": 10000,
