@@ -4,11 +4,7 @@ import json
 
 def ria_reader(path):
     with open(path, "r", encoding="utf-8") as r:
-        c = 0
         for line in r:
-            c += 1
-            if c == 100:
-                return
             record = json.loads(line.strip())
 
             assert "title" in record

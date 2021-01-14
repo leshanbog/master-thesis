@@ -14,30 +14,6 @@ from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from torch import nn
 import copy
 
-def leave_n_encoder_layers(model, n):  # must pass in the full bert model
-    oldModuleList = model.encoder.encoder.layer
-    newModuleList = nn.ModuleList()
-
-    for i in range(n):
-        newModuleList.append(oldModuleList[i])
-
-    copyOfModel = copy.deepcopy(model)
-    copyOfModel.encoder.encoder.layer = newModuleList
-
-    return copyOfModel
-
-def leave_n_decoder_layers(model, n):  # must pass in the full bert model
-    oldModuleList = model.decoder.bert.encoder.layer
-    newModuleList = nn.ModuleList()
-
-    for i in range(n):
-        newModuleList.append(oldModuleList[i])
-
-    copyOfModel = copy.deepcopy(model)
-    model.decoder.bert.encoder.layer = newModuleList
-
-    return copyOfModel
-
 
 def train_gen_title(
     config_file: str,
@@ -83,11 +59,6 @@ def train_gen_title(
         model = cls.from_pretrained(from_pretrained)
     else:
         model = cls.from_encoder_decoder_pretrained(model_path, model_path)
-        
-    model.config.encoder.num_hidden_layers = config['encoder'].get('num_hidden_layers', 8)
-    model.config.decoder.num_hidden_layers = config['decoder'].get('num_hidden_layers', 6)
-    model = leave_n_decoder_layers(model, model.config.decoder.num_hidden_layers)
-    model = leave_n_encoder_layers(model, model.config.encoder.num_hidden_layers)
 
     print("Training model...")
     batch_size = config.pop("batch_size", 8)
@@ -97,11 +68,13 @@ def train_gen_title(
     learning_rate = config.pop("learning_rate", 5e-05)
     warmup_steps = config.pop("warmup_steps", 2000)
     num_train_epochs = config.pop("num_train_epochs", 5)
+    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 95)
 
     training_args = TrainingArguments(
         output_dir=output_model_path,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
         evaluation_strategy='epoch',
         do_train=True,
         do_eval=True,
