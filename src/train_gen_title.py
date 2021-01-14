@@ -75,7 +75,7 @@ def train_gen_title(
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation_steps,
-        evaluation_strategy='epoch',
+        evaluation_strategy='steps',
         do_train=True,
         do_eval=True,
         overwrite_output_dir=False,
