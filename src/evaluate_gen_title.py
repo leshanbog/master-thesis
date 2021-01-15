@@ -45,7 +45,6 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
         hyp = punct_detokenize(hyp)
         ref = punct_detokenize(ref)
     if tokenize_after:
-        hyp = hyp.replace("@@UNKNOWN@@", "<unk>")
         if language == "ru":
             hyp = " ".join([token.text for token in razdel.tokenize(hyp)])
             ref = " ".join([token.text for token in razdel.tokenize(ref)])

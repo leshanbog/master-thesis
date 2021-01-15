@@ -23,19 +23,17 @@ def calc_metrics(refs, hyps, language, metric="all", meteor_jar=None):
     metrics["count"] = len(hyps)
     metrics["ref_example"] = refs[-1]
     metrics["hyp_example"] = hyps[-1]
+
     many_refs = [[r] if r is not list else r for r in refs]
-    if metric in ("bleu", "all"):
-        metrics["bleu"] = corpus_bleu(many_refs, hyps)
-    if metric in ("rouge", "all"):
-        rouge = Rouge()
-        scores = rouge.get_scores(hyps, refs, avg=True)
-        metrics.update(scores)
-    if metric in ("meteor", "all") and meteor_jar is not None and os.path.exists(meteor_jar):
-        meteor = Meteor(meteor_jar, language=language)
-        metrics["meteor"] = meteor.compute_score(hyps, many_refs)
-    if metric in ("duplicate_ngrams", "all"):
-        metrics["duplicate_ngrams"] = dict()
-        metrics["duplicate_ngrams"].update(calc_duplicate_n_grams_rate(hyps))
+
+    metrics["bleu"] = corpus_bleu(many_refs, hyps)
+
+    rouge = Rouge()
+    scores = rouge.get_scores(hyps, refs, avg=True)
+    metrics.update(scores)
+
+    metrics["duplicate_ngrams"] = dict()
+    metrics["duplicate_ngrams"].update(calc_duplicate_n_grams_rate(hyps))
     return metrics
 
 
@@ -53,8 +51,6 @@ def print_metrics(refs, hyps, language, metric="all", meteor_jar=None):
         print("ROUGE-1-F:\t{:3.1f}".format(metrics["rouge-1"]['f'] * 100.0))
         print("ROUGE-2-F:\t{:3.1f}".format(metrics["rouge-2"]['f'] * 100.0))
         print("ROUGE-L-F:\t{:3.1f}".format(metrics["rouge-l"]['f'] * 100.0))
-    if "meteor" in metrics:
-        print("METEOR:   \t{:3.1f}".format(metrics["meteor"] * 100.0))
     if "duplicate_ngrams" in metrics:
         print("Dup 1-grams:\t{:3.1f}".format(metrics["duplicate_ngrams"][1] * 100.0))
         print("Dup 2-grams:\t{:3.1f}".format(metrics["duplicate_ngrams"][2] * 100.0))
