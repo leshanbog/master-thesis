@@ -35,8 +35,8 @@ def train_gen_title(
     val_records = [r for r in tqdm.tqdm(ria_reader(val_file)) if random.random() <= val_sample_rate]
 
     print("Building datasets...")
-    model_path = config.pop("model_path")
-    tokenizer = AutoTokenizer.from_pretrained(model_path, do_lower_case=False)
+    tokenizer_model_path = config.pop("tokenizer_model_path")
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False)
 
     max_tokens_text = config.pop("max_tokens_text", 196)
     max_tokens_title = config.pop("max_tokens_title", 48)
@@ -54,21 +54,27 @@ def train_gen_title(
         max_tokens_title=max_tokens_title)
 
     print("Initializing model...")
+
     cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
     if from_pretrained:
         model = cls.from_pretrained(from_pretrained)
     else:
-        model = cls.from_encoder_decoder_pretrained(model_path, model_path)
+        enc_model_path = config.pop("enc_model_path")
+        dec_model_path = config.pop("dec_model_path")
+        model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
+
+    print("Model: ")
+    print(model)
 
     print("Training model...")
     batch_size = config.pop("batch_size", 8)
-    eval_steps = config.pop("eval_steps", 10000)
-    save_steps = config.pop("save_steps", 10000)
-    logging_steps = config.pop("logging_steps", 100)
+    eval_steps = config.pop("eval_steps", 100)
+    save_steps = config.pop("save_steps", 100)
+    logging_steps = config.pop("logging_steps", 25)
     learning_rate = config.pop("learning_rate", 5e-05)
-    warmup_steps = config.pop("warmup_steps", 2000)
+    warmup_steps = config.pop("warmup_steps", 150)
     num_train_epochs = config.pop("num_train_epochs", 5)
-    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 95)
+    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 25)
 
     training_args = TrainingArguments(
         output_dir=output_model_path,
@@ -84,7 +90,7 @@ def train_gen_title(
         eval_steps=eval_steps,
         learning_rate=learning_rate,
         warmup_steps=warmup_steps,
-        save_total_limit=1,
+        save_total_limit=2,
         num_train_epochs=num_train_epochs
     )
 
