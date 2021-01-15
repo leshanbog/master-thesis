@@ -54,3 +54,10 @@ class GenTitleDataset(Dataset):
             "decoder_attention_mask": decoder_attention_mask,
             "labels": labels
         }
+
+    def get_strings(self, index):
+        record = self.records[index]
+        return {
+            'text': record["text"],
+            'title': record.get("title", "")
+        }

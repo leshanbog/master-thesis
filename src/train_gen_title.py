@@ -11,9 +11,6 @@ from readers.ria_reader import ria_reader
 from datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 
-from torch import nn
-import copy
-
 
 def train_gen_title(
     config_file: str,
