@@ -1,5 +1,8 @@
 from collections import Counter
 
+from rouge import Rouge
+from nltk.translate.bleu_score import corpus_bleu
+
 
 def calc_duplicate_n_grams_rate(documents):
     all_ngrams_count = Counter()

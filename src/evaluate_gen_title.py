@@ -11,6 +11,7 @@ import torch
 from readers.ria_reader import ria_reader
 from datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
+from evaluation.gen_title_calculate_metrics import print_metrics
 
 
 def punct_detokenize(text):
@@ -40,7 +41,7 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
         hyp = " ".join(hyp)
         ref = " ".join(ref)
     ref = ref.strip()
-    hyp = hyp.strip()
+    hyp = hyp.strip().replace('[SEP]', '.')
     if detokenize_after:
         hyp = punct_detokenize(hyp)
         ref = punct_detokenize(ref)
@@ -60,8 +61,7 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
 def evaluate_and_print_metrics(
     predicted_path: str,
     gold_path: str,
-    metric,
-    language,
+    language='ru',
     max_count=None,
     is_multiple_ref=False,
     detokenize_after=False,
@@ -73,6 +73,10 @@ def evaluate_and_print_metrics(
 
     with open(gold_path, "r") as gold, open(predicted_path, "r") as pred:
         for i, (ref, hyp) in enumerate(zip(gold, pred)):
+            if i % 500 == 0:
+                print(ref)
+                print(hyp)
+
             if max_count is not None and i >= max_count:
                 break
             ref, hyp = postprocess(ref, hyp, language, is_multiple_ref, detokenize_after, tokenize_after, lower)
@@ -81,10 +85,16 @@ def evaluate_and_print_metrics(
                 continue
             if not ref:
                 continue
+
+            if i % 500 == 0:
+                print(ref)
+                print(hyp)
+                print('-' * 60)
+
             refs.append(ref)
             hyps.append(hyp)
 
-    print_metrics(refs, hyps, metric=metric, language=language)
+    print_metrics(refs, hyps, language=language)
 
 
 def make_inference_and_save(
@@ -93,7 +103,7 @@ def make_inference_and_save(
         test_file,
         test_sample_rate,
         enable_bottleneck,
-        out_dir
+        out_path_prefix
 ):
     config = json.loads(jsonnet_evaluate_file(config_file))
 
@@ -121,20 +131,20 @@ def make_inference_and_save(
 
     batch_size = config.pop("batch_size", 8)
 
-    out_path_prefix = out_dir + '/' + eval_model_file[eval_model_file.index('checkpoint'):] + '-'
-
     with open(out_path_prefix + 'prediction.txt', 'w', encoding='utf-8') as pf, \
             open(out_path_prefix + 'gold.txt', 'w', encoding='utf-8') as gf:
         for i in tqdm.trange(0, len(test_dataset), batch_size):
             data = test_dataset[i]
-            del data['labels']
-
-            for k in data.keys():
-                data[k] = data[k].unsqueeze(0)
+            for k in tuple(data.keys()):
+                if k not in ('input_ids', 'attention_mask'):
+                    del data[k]
+                else:
+                    data[k] = data[k].unsqueeze(0)
 
             for j in range(i + 1, min(i + batch_size, len(test_dataset))):
                 for k in data.keys():
                     data[k] = torch.cat((data[k], test_dataset[j][k].unsqueeze(0)), dim=0)
+
 
             output_ids = model.generate(**data, decoder_start_token_id=model.config.decoder.pad_token_id)
             preds = [
@@ -145,9 +155,10 @@ def make_inference_and_save(
 
             gf.write(
                 '\n'.join([
-                    test_dataset.get_strings(j)['title'] for j in range(i + 1, min(i + batch_size, len(test_dataset)))
+                    test_dataset.get_strings(j)['title'] for j in range(i, min(i + batch_size, len(test_dataset)))
                 ])
             )
+
 
 
 def evaluate_gen_title(
@@ -157,25 +168,37 @@ def evaluate_gen_title(
     test_file: str,
     test_sample_rate: float,
     out_dir: str,
-    enable_bottleneck: bool = False
+    enable_bottleneck: bool = False,
+    detokenize_after: bool = False
 ):
     logging.set_verbosity_info()
 
-    if do_inference:
-        make_inference_and_save(config_file, eval_model_file, test_file, test_sample_rate, enable_bottleneck, out_dir)
+    out_path_prefix = out_dir + '/' + eval_model_file[eval_model_file.index('checkpoint'):]
+    if out_path_prefix[-1] == '/':
+        out_path_prefix = out_path_prefix[:-1]
 
-    evaluate_and_print_metrics()
+    out_path_prefix += '-'
+
+    if do_inference == '1':
+        make_inference_and_save(config_file, eval_model_file, test_file, test_sample_rate, enable_bottleneck, out_path_prefix)
+
+    evaluate_and_print_metrics(
+        out_path_prefix + 'prediction.txt',
+        out_path_prefix + 'gold.txt',
+        detokenize_after=detokenize_after
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", type=str, required=True)
-    parser.add_argument("--do-inference", type=bool, required=True)
+    parser.add_argument("--do-inference", type=str, required=True)
     parser.add_argument("--eval-model-file", type=str, required=True)
     parser.add_argument("--test-file", type=str, required=True)
     parser.add_argument("--test-sample-rate", type=float, default=1.0)
     parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
+    parser.add_argument("--detokenize-after", default=False, action='store_true')
 
     args = parser.parse_args()
     evaluate_gen_title(**vars(args))
