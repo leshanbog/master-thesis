@@ -8,7 +8,7 @@ from transformers import AutoTokenizer, EncoderDecoderModel, logging
 from sklearn.cluster import AgglomerativeClustering
 
 
-from evaluationclustering_utils import get_gold_markup, get_data_to_cluster, doc2vec_bert, calc_clustering_metrics
+from evaluation.clustering_utils import get_gold_markup, get_data_to_cluster, doc2vec_bert, calc_clustering_metrics
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 
 
@@ -80,14 +80,14 @@ def perform_clustering_eval(config_file,
     text_to_vector_func = get_text_to_vector_func(text_to_vec_func, model, tokenizer)
 
     print('Calculating embeddings...')
-    embeds = []
+    embeds = np.zeros((len(url2record.items()), 768))
 
     for i, (url, record) in tqdm.tqdm(enumerate(url2record.items())):
         text = record["title"] + ' ' + record["text"]
         text = text.lower().replace('\xa0', ' ')
-        embeds.append(text_to_vector_func(text))
+        embeds[i] = text_to_vector_func(text).detach().numpy().ravel()
 
-    embeds = np.array(embeds)
+    print('Embeds shape =', embeds.shape)
     assert len(embeds) == len(url2record.items())
 
     print('Searching for optimal threshold')
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("--clustering-data-file", type=str, required=True)  # ru_clustering_data.jsonl
     parser.add_argument("--gold-markup-file", type=str, required=True)  # ru_threads_target.tsv
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
-    parser.add_argument("--text-to-vec-func", type=str, default='bert', choices=('bert', 'distill'))
+    parser.add_argument("--text-to-vec-func", type=str, default='bert-MeanSum', choices=('bert-MeanSum', 'bert-FirstCLS'))
 
     args = parser.parse_args()
     perform_clustering_eval(**vars(args))

@@ -7,7 +7,7 @@ from sklearn.metrics import classification_report
 
 
 def doc2vec_bert(text, model, tokenizer, mode='MeanSum'):
-    inp = torch.LongTensor(tokenizer.encode(text))[:tokenizer.max_token_text].unsqueeze(0)
+    inp = torch.LongTensor(tokenizer.encode(text))[:tokenizer.max_tokens_text].unsqueeze(0)
     output = model.encoder(inp)['last_hidden_state'][0]
 
     if mode == 'FirstCLS':
@@ -57,6 +57,8 @@ def calc_clustering_metrics(gold_markup, url2label, url2record, output_dict=Fals
         if not_found_in_labels or not_found_in_records:
             not_found_count += 1
             gold_markup.pop((first_url, second_url))
+
+    assert not_found_count == 0
 
     targets = []
     predictions = []
