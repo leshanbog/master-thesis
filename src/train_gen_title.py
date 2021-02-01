@@ -4,7 +4,7 @@ import random
 import tqdm
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
-from transformers import AutoTokenizer, EncoderDecoderModel, PreTrainedModel, PretrainedConfig, \
+from transformers import BertTokenizer, EncoderDecoderModel, PreTrainedModel, PretrainedConfig, \
     Trainer, TrainingArguments, logging
 
 from readers.ria_reader import ria_reader
@@ -33,7 +33,7 @@ def train_gen_title(
 
     print("Building datasets...")
     tokenizer_model_path = config.pop("tokenizer_model_path")
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False)
+    tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
     max_tokens_text = config.pop("max_tokens_text", 196)
     max_tokens_title = config.pop("max_tokens_title", 48)

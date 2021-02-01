@@ -3,15 +3,23 @@ import json
 import random
 import tqdm
 import re
+import razdel
+import nltk
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
-from transformers import AutoTokenizer, EncoderDecoderModel, logging
+from transformers import BertTokenizer, EncoderDecoderModel, logging
 import torch
 
 from readers.ria_reader import ria_reader
 from datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from evaluation.gen_title_calculate_metrics import print_metrics
+
+def first_sent(x, token_id):
+    lx = list(x)
+    if token_id in x:
+        return x[:lx.index(token_id)]
+    return x
 
 
 def punct_detokenize(text):
@@ -61,7 +69,7 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
 def evaluate_and_print_metrics(
     predicted_path: str,
     gold_path: str,
-    language='ru',
+    language='u',
     max_count=None,
     is_multiple_ref=False,
     detokenize_after=False,
@@ -108,11 +116,11 @@ def make_inference_and_save(
     config = json.loads(jsonnet_evaluate_file(config_file))
 
     print("Fetching data...")
-    test_records = [r for r in ria_reader(test_file) if random.random() <= test_sample_rate]
+    test_records = [r for r in tqdm.tqdm(ria_reader(test_file)) if random.random() <= test_sample_rate]
 
     print("Building datasets...")
     tokenizer_model_path = config.pop("tokenizer_model_path")
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False)
+    tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
     max_tokens_text = config.pop("max_tokens_text", 196)
     max_tokens_title = config.pop("max_tokens_title", 48)
@@ -146,10 +154,19 @@ def make_inference_and_save(
                     data[k] = torch.cat((data[k], test_dataset[j][k].unsqueeze(0)), dim=0)
 
 
-            output_ids = model.generate(**data, decoder_start_token_id=model.config.decoder.pad_token_id)
+            output_ids = model.generate(
+                **data,
+                decoder_start_token_id=model.config.decoder.pad_token_id,
+                min_length=7,
+                max_length=20,
+                num_beams=6
+            )
+
+
             preds = [
-                tokenizer.decode(x[1: torch.max(torch.nonzero(x)).item()]) for x in output_ids
+                tokenizer.decode(first_sent(x, tokenizer.sep_token_id), skip_special_tokens=True) for x in output_ids
             ]
+
 
             pf.write('\n'.join(preds))
 
@@ -169,7 +186,8 @@ def evaluate_gen_title(
     test_sample_rate: float,
     out_dir: str,
     enable_bottleneck: bool = False,
-    detokenize_after: bool = False
+    detokenize_after: bool = False,
+    tokenize_after: bool = False
 ):
     logging.set_verbosity_info()
 
@@ -185,7 +203,8 @@ def evaluate_gen_title(
     evaluate_and_print_metrics(
         out_path_prefix + 'prediction.txt',
         out_path_prefix + 'gold.txt',
-        detokenize_after=detokenize_after
+        detokenize_after=detokenize_after,
+        tokenize_after=tokenize_after
     )
 
 
@@ -199,6 +218,7 @@ if __name__ == "__main__":
     parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
     parser.add_argument("--detokenize-after", default=False, action='store_true')
+    parser.add_argument("--tokenize-after", default=False, action='store_true')
 
     args = parser.parse_args()
     evaluate_gen_title(**vars(args))
