@@ -9,13 +9,14 @@ from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, logging
 
 from readers.tg_reader import tg_reader
-from datasets.agency_title_dataset import AgencyTitleDataset 
-from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
+from datasets.agency_title_dataset import AgencyTitleDataset
 
 
 def compute_metrics(eval_pred):
     predictions, labels = eval_pred
-    return np.mean(np.argmax(predictions, axis=1) == labels)
+    return {
+        'accuracy': np.mean(np.argmax(predictions, axis=1) == labels)
+    }
 
 
 def train_discriminator(
@@ -23,7 +24,6 @@ def train_discriminator(
     train_file: str,
     train_fraq: float,
     train_sample_rate: float,
-    val_sample_rate: float,
     output_model_path: str,
 ):
     logging.set_verbosity_info()
@@ -33,7 +33,7 @@ def train_discriminator(
     agency_list = config.pop('agency_list', ['ТАСС', 'РТ на русском'])
 
     print("Fetching data...")
-    all_records = [r for r in tqdm.tqdm(tg_reader(train_file)) if random.random() <= train_sample_rate]
+    all_records = [r for r in tqdm.tqdm(tg_reader(train_file, agency_list)) if random.random() <= train_sample_rate]
 
     print("Building datasets...")
     tokenizer_model_path = config.pop("tokenizer_model_path")
@@ -107,7 +107,6 @@ if __name__ == "__main__":
     parser.add_argument("--train-file", type=str, required=True)
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
     parser.add_argument("--train-fraq", type=float, default=0.8)
-    parser.add_argument("--val-sample-rate", type=float, default=1.0)
     parser.add_argument("--output-model-path", type=str, default="models/agency_discr")
 
     args = parser.parse_args()
