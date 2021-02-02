@@ -69,7 +69,7 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
 def evaluate_and_print_metrics(
     predicted_path: str,
     gold_path: str,
-    language='u',
+    language='ru',
     max_count=None,
     is_multiple_ref=False,
     detokenize_after=False,
@@ -162,20 +162,13 @@ def make_inference_and_save(
                 num_beams=6
             )
 
-
             preds = [
                 tokenizer.decode(first_sent(x, tokenizer.sep_token_id), skip_special_tokens=True) for x in output_ids
             ]
 
-
-            pf.write('\n'.join(preds))
-
-            gf.write(
-                '\n'.join([
-                    test_dataset.get_strings(j)['title'] for j in range(i, min(i + batch_size, len(test_dataset)))
-                ])
-            )
-
+            for j in range(i, min(i + batch_size, len(test_dataset))):
+                pf.write(preds[j - i] + '\n')
+                gf.write(test_dataset.get_strings(j)['title'] + '\n')
 
 
 def evaluate_gen_title(
