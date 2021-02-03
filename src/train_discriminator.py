@@ -31,6 +31,7 @@ def train_discriminator(
     config = json.loads(jsonnet_evaluate_file(config_file))
     
     agency_list = config.pop('agency_list', ['ТАСС', 'РТ на русском'])
+    print('Agency list:', agency_list)
 
     print("Fetching data...")
     all_records = [r for r in tqdm.tqdm(tg_reader(train_file, agency_list)) if random.random() <= train_sample_rate]
@@ -97,7 +98,7 @@ def train_discriminator(
     )
 
     trainer.train()
-    trainer.evaluate()
+    print(trainer.evaluate())
     model.save_pretrained(output_model_path)
 
 

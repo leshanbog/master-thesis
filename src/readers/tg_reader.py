@@ -8,9 +8,6 @@ def tg_reader(path, agency_list=None):
             text = data.iloc[i]['text'].lower().replace('\xa0', ' ').replace('\n', ' ').strip()
             title = data.iloc[i]['title'].lower()
 
-            if i > 50000:
-                return
-
             if not text or not title or text.count(' ') < 3 or title.count(' ') < 3 or \
                     (agency_list is not None and data.iloc[i]['site_name'] not in agency_list):
                 continue
