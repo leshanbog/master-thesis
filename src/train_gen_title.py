@@ -2,6 +2,7 @@ import argparse
 import json
 import random
 import tqdm
+import torch
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, PreTrainedModel, PretrainedConfig, \
@@ -10,6 +11,27 @@ from transformers import BertTokenizer, EncoderDecoderModel, PreTrainedModel, Pr
 from readers.ria_reader import ria_reader
 from datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
+
+
+def get_separate_lr_optimizer(model, enc_lr, dec_lr, warmup_steps, total_train_steps):
+    from transformers import get_linear_schedule_with_warmup
+    enc = []
+    dec = []
+
+    for name, param in model.named_parameters():
+        if name.startswith('encoder'):
+            enc.append(param)
+        elif name.startswith('decoder'):
+            dec.append(param)
+        else:
+            raise ValueError
+
+    optimizer = torch.optim.AdamW([
+        {'params': dec, 'lr': dec_lr},
+        {'params': enc, 'lr': enc_lr}
+    ])
+
+    return optimizer, get_linear_schedule_with_warmup(optimizer, warmup_steps, total_train_steps)
 
 
 def train_gen_title(
@@ -35,7 +57,7 @@ def train_gen_title(
     tokenizer_model_path = config.pop("tokenizer_model_path")
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
-    max_tokens_text = config.pop("max_tokens_text", 196)
+    max_tokens_text = config.pop("max_tokens_text", 250)
     max_tokens_title = config.pop("max_tokens_title", 48)
 
     train_dataset = GenTitleDataset(
@@ -58,20 +80,24 @@ def train_gen_title(
     else:
         enc_model_path = config.pop("enc_model_path")
         dec_model_path = config.pop("dec_model_path")
-        model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
+        model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path,
+                                                    decoder_attention_probs_dropout_prob=0.2)
 
     print("Model: ")
     print(model)
 
     print("Training model...")
-    batch_size = config.pop("batch_size", 8)
-    eval_steps = config.pop("eval_steps", 100)
-    save_steps = config.pop("save_steps", 100)
-    logging_steps = config.pop("logging_steps", 25)
-    learning_rate = config.pop("learning_rate", 5e-05)
-    warmup_steps = config.pop("warmup_steps", 150)
-    num_train_epochs = config.pop("num_train_epochs", 5)
-    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 25)
+    batch_size = config.pop("batch_size", 4)
+    eval_steps = config.pop("eval_steps", 500)
+    save_steps = config.pop("save_steps", 500)
+    logging_steps = config.pop("logging_steps", 100)
+    enc_lr = config.pop("enc_lr", 5e-5)
+    dec_lr = config.pop("dec_lr", 5e-3)
+    warmup_steps = config.pop("warmup_steps", 1000)
+    max_steps = config.pop("max_steps", 10000)
+    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 125)
+
+    opt = get_separate_lr_optimizer(model, enc_lr, dec_lr, warmup_steps, max_steps)
 
     training_args = TrainingArguments(
         output_dir=output_model_path,
@@ -85,10 +111,8 @@ def train_gen_title(
         logging_steps=logging_steps,
         save_steps=save_steps,
         eval_steps=eval_steps,
-        learning_rate=learning_rate,
-        warmup_steps=warmup_steps,
         save_total_limit=2,
-        num_train_epochs=num_train_epochs
+        max_steps=max_steps
     )
 
     trainer = Trainer(
@@ -96,6 +120,7 @@ def train_gen_title(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
+        optimizers=opt
     )
 
     trainer.train(checkpoint)
