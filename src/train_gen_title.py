@@ -80,8 +80,7 @@ def train_gen_title(
     else:
         enc_model_path = config.pop("enc_model_path")
         dec_model_path = config.pop("dec_model_path")
-        model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path,
-                                                    decoder_attention_probs_dropout_prob=0.2)
+        model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
     print("Model: ")
     print(model)
