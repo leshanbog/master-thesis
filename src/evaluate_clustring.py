@@ -65,7 +65,7 @@ def perform_clustering_eval(config_file,
     config = json.loads(jsonnet_evaluate_file(config_file))
 
     tokenizer_model_path = config.pop("tokenizer_model_path")
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False)
+    tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
     max_tokens_text = config.pop("max_tokens_text", 196)
 
