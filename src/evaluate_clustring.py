@@ -4,7 +4,7 @@ import tqdm
 import numpy as np
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
-from transformers import AutoTokenizer, EncoderDecoderModel, logging
+from transformers import BertTokenizer, EncoderDecoderModel, logging
 from sklearn.cluster import AgglomerativeClustering
 
 
@@ -67,7 +67,7 @@ def perform_clustering_eval(config_file,
     tokenizer_model_path = config.pop("tokenizer_model_path")
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
-    max_tokens_text = config.pop("max_tokens_text", 196)
+    max_tokens_text = config.pop("max_tokens_text", 250)
 
     print("Loading model...")
     cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
@@ -82,7 +82,9 @@ def perform_clustering_eval(config_file,
     print('Calculating embeddings...')
     embeds = np.zeros((len(url2record.items()), 768))
 
-    for i, (url, record) in tqdm.tqdm(enumerate(url2record.items())):
+    total_articles = len(url2record.items())
+
+    for i, (url, record) in tqdm.tqdm(enumerate(url2record.items()), total=total_articles):
         text = record["title"] + ' ' + record["text"]
         text = text.lower().replace('\xa0', ' ')
         embeds[i] = text_to_vector_func(text).detach().numpy().ravel()
