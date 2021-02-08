@@ -21,12 +21,13 @@ class BottleneckEncoderDecoderModel(EncoderDecoderModel):
         *model_args,
         **kwargs
     ):
-        return EncoderDecoderModel.from_encoder_decoder_pretrained(
+        instance = EncoderDecoderModel.from_encoder_decoder_pretrained(
             encoder_pretrained_model_name_or_path,
             decoder_pretrained_model_name_or_path,
             *model_args,
             **kwargs
         )
+        return BottleneckEncoderDecoderModel(instance.config, instance.encoder, instance.decoder)
 
     def forward(
         self,
