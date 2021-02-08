@@ -1,3 +1,25 @@
+'''
+Reminder:
+
+ru_clustering_data.jsonl
+    10731 lines in format
+        INPUT:first_title	INPUT:second_title	INPUT:first_url	INPUT:second_url	INPUT:first_text	INPUT:second_text	OUTPUT:quality
+
+ru_clustering_0517.tsv
+    2746 lines with json on each that contains 'title', 'text', 'url', ...
+
+gold_markup
+    dictionary: (first_url, second_url) -> are they part of the same cluster? (0 / 1)
+    4202 positive pairs, 7609 negative pairs
+
+
+1. Fitting AgglomerativeClustering on all embeddings of titles from ru_clustering_0517.tsv
+2. Going through gold_markup and mark pair as correct if
+    (both urls have the same assigned label and the gold answer is 1) or
+    (urls have different assigned label and the gold answer is 0)
+'''
+
+
 import argparse
 import json
 import tqdm
@@ -75,6 +97,7 @@ def perform_clustering_eval(config_file,
     model.eval()
 
     gold_markup = get_gold_markup(gold_markup_file)
+
     url2record, filename2url = get_data_to_cluster(clustering_data_file)
     setattr(tokenizer, 'max_tokens_text', max_tokens_text)
     text_to_vector_func = get_text_to_vector_func(text_to_vec_func, model, tokenizer)
@@ -90,7 +113,6 @@ def perform_clustering_eval(config_file,
         embeds[i] = text_to_vector_func(text).detach().numpy().ravel()
 
     print('Embeds shape =', embeds.shape)
-    assert len(embeds) == len(url2record.items())
 
     print('Searching for optimal threshold')
     domain = np.logspace(-3, 0, 11)
