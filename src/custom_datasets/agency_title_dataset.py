@@ -79,5 +79,6 @@ class AgencyTitleDataset(Dataset):
         record = self.records[index]
         return {
             'text': record["text"],
-            'title': record.get("title", "")
+            'title': record.get("title", ""),
+            'agency': record.get('agency', '-')
         }

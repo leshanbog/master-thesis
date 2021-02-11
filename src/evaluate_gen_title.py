@@ -11,7 +11,7 @@ from transformers import BertTokenizer, EncoderDecoderModel, logging
 import torch
 
 from readers.ria_reader import ria_reader
-from datasets.gen_title_dataset import GenTitleDataset
+from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from evaluation.gen_title_calculate_metrics import print_metrics
 
