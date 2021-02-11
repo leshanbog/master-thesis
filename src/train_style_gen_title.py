@@ -50,7 +50,7 @@ def train_style_gen_title(
 
     print("Building datasets...")
 
-    agency_to_special_token_id = {a: tokenizer.vocab[f'[usused{i+1}'] for i, a in enumerate(agency_list)}
+    agency_to_special_token_id = {a: tokenizer.vocab[f'[unused{i+1}]'] for i, a in enumerate(agency_list)}
 
     full_dataset = AgencyTitleDataset(
         all_records,
