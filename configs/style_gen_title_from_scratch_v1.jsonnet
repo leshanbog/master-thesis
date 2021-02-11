@@ -2,9 +2,10 @@
     "tokenizer_model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
     "enc_model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
     "dec_model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
+    "agency_list": ["ТАСС", "РИАМО", "RT на русском", "Новости Мойка78"],
     "max_tokens_text": 250,
     "max_tokens_title": 48,
-    "gradient_accumulation_steps": 125,
+    "gradient_accumulation_steps": 50,
     "batch_size": 4,
     "eval_steps": 500,
     "save_steps": 500,
@@ -12,5 +13,5 @@
     "enc_lr": 0.00002,
     "dec_lr": 0.0002,
     "warmup_steps": 1800,
-    "max_steps": 6000,
+    "max_steps": 20000,
 }
