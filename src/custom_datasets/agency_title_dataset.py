@@ -8,7 +8,7 @@ class AgencyTitleDataset(Dataset):
         records,
         tokenizer,
         agency_list,
-        agency_to_special_token=None,
+        agency_to_special_token_id=None,
         do_prepend_marker=False,
         max_tokens_text=196,
         max_tokens_title=40,
@@ -18,7 +18,7 @@ class AgencyTitleDataset(Dataset):
         self.max_tokens_text = max_tokens_text
         self.max_tokens_title = max_tokens_title
 
-        self.agency_to_special_token = agency_to_special_token
+        self.agency_to_special_token_id = agency_to_special_token_id
         self.agency_to_target = {a: i for i, a in enumerate(sorted(agency_list))}
         self.target_to_agency = {i: a for a, i in self.agency_to_target.items()}
         
@@ -57,9 +57,13 @@ class AgencyTitleDataset(Dataset):
                 padding="max_length",
                 truncation=True
             )
-            
-            ### Prepend special token here
-            ### TODO
+
+            ### Not adding [SEP] in the end
+            text_tok['input_ids'][2:] = text_tok['input_ids'][1:-1]
+            text_tok['input_ids'][1] = self.agency_to_special_token_id[record['agency']]
+
+            text_tok['attention_mask'][2:] = text_tok['attention_mask'][1:-1]
+            text_tok['attention_mask'][1] = 1
 
             return {
                 "input_ids": torch.tensor(text_tok["input_ids"]),

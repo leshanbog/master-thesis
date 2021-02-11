@@ -72,29 +72,11 @@ def train_discriminator(
     gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 25)
 
     training_args = TrainingArguments(
-        output_dir=output_model_path,
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        gradient_accumulation_steps=gradient_accumulation_steps,
-        evaluation_strategy='steps',
-        do_train=True,
-        do_eval=True,
-        overwrite_output_dir=False,
-        logging_steps=logging_steps,
-        save_steps=save_steps,
-        eval_steps=eval_steps,
-        learning_rate=learning_rate,
-        warmup_steps=warmup_steps,
-        save_total_limit=2,
-        num_train_epochs=num_train_epochs
+
     )
 
     trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        compute_metrics=compute_metrics
+
     )
 
     trainer.train()

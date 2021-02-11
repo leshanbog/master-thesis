@@ -7,28 +7,25 @@ import torch
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, Trainer, TrainingArguments, logging
 
-from readers.ria_reader import ria_reader
 from readers.tg_reader import tg_reader
-from custom_datasets.gen_title_dataset import GenTitleDataset
-from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
+from custom_datasets.agency_title_dataset import AgencyTitleDataset
 from utils.training_utils import get_separate_lr_optimizer
 
 
-def train_gen_title(
-    config_file: str,
-    train_file: str,
-    val_file: str,
-    dataset_type: str,
-    train_sample_rate: float,
-    val_sample_rate: float,
-    output_model_path: str,
-    enable_bottleneck: bool = False,
-    from_pretrained: str = None,
-    checkpoint: str = None
+def train_style_gen_title(
+        config_file: str,
+        train_file: str,
+        train_sample_rate: float,
+        output_model_path: str,
+        from_pretrained: str = None,
+        checkpoint: str = None
 ):
     logging.set_verbosity_info()
 
     config = json.loads(jsonnet_evaluate_file(config_file))
+
+    agency_list = config.pop('agency_list', ['ТАСС', 'РТ на русском'])
+    print('Agency list:', agency_list)
 
     tokenizer_model_path = config.pop("tokenizer_model_path")
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
@@ -38,50 +35,35 @@ def train_gen_title(
 
     print("Initializing model...")
 
-    cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
     if from_pretrained:
-        model = cls.from_pretrained(from_pretrained)
+        model = EncoderDecoderModel.from_pretrained(from_pretrained)
     else:
         enc_model_path = config.pop("enc_model_path")
         dec_model_path = config.pop("dec_model_path")
-        model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
+        model = EncoderDecoderModel.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
     print("Model: ")
     print(model)
 
-    if dataset_type == 'ria':
-        print("Fetching data...")
-        train_records = [r for r in tqdm.tqdm(ria_reader(train_file)) if random.random() <= train_sample_rate]
-        val_records = [r for r in tqdm.tqdm(ria_reader(val_file)) if random.random() <= val_sample_rate]
+    print("Fetching data...")
+    all_records = [r for r in tqdm.tqdm(tg_reader(train_file)) if random.random() <= train_sample_rate]
 
-        print("Building datasets...")
+    print("Building datasets...")
 
-        train_dataset = GenTitleDataset(
-            train_records,
-            tokenizer,
-            max_tokens_text=max_tokens_text,
-            max_tokens_title=max_tokens_title)
-    
-        val_dataset = GenTitleDataset(
-            val_records,
-            tokenizer,
-            max_tokens_text=max_tokens_text,
-            max_tokens_title=max_tokens_title)
-    else:
-        print("Fetching data...")
-        all_records = [r for r in tqdm.tqdm(tg_reader(train_file)) if random.random() <= train_sample_rate]
+    agency_to_special_token_id = {a: tokenizer.vocab[f'[usused{i+1}'] for i, a in enumerate(agency_list)}
 
-        print("Building datasets...")
+    full_dataset = AgencyTitleDataset(
+        all_records,
+        tokenizer,
+        agency_list,
+        agency_to_special_token_id,
+        do_prepend_marker=True,
+        max_tokens_text=max_tokens_text,
+        max_tokens_title=max_tokens_title)
 
-        full_dataset = GenTitleDataset(
-                        all_records,
-                        tokenizer,
-                        max_tokens_text=max_tokens_text,
-                        max_tokens_title=max_tokens_title)
-            
-        train_size = int(0.995 * len(full_dataset))
-        train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,
-                                                                   [train_size, len(full_dataset) - train_size])
+    train_size = int(0.9 * len(full_dataset))
+    train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,
+                                                               [train_size, len(full_dataset) - train_size])
 
     print("Training model...")
     batch_size = config.pop("batch_size", 4)
@@ -128,14 +110,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
-    parser.add_argument("--val-file", type=str, required=False)
-    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
-    parser.add_argument("--val-sample-rate", type=float, default=1.0)
-    parser.add_argument("--output-model-path", type=str, default="models/gen_title")
-    parser.add_argument("--enable-bottleneck", default=False, action='store_true')
+    parser.add_argument("--output-model-path", type=str, default="models/style_gen_title")
     parser.add_argument("--from-pretrained", type=str, default=None)
     parser.add_argument("--checkpoint", type=str, default=None)
 
     args = parser.parse_args()
-    train_gen_title(**vars(args))
+    train_style_gen_title(**vars(args))
