@@ -65,6 +65,8 @@ def train_style_gen_title(
     train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,
                                                                [train_size, len(full_dataset) - train_size])
 
+    print(f"Train dataset length = {len(train_dataset)}\nVal dataset length = {len(val_dataset)}") 
+
     print("Training model...")
     batch_size = config.pop("batch_size", 4)
     eval_steps = config.pop("eval_steps", 500)

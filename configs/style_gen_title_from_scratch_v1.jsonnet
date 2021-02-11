@@ -1,7 +1,7 @@
 {
-    "tokenizer_model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
-    "enc_model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
-    "dec_model_path": "/Users/leshanbog/Documents/neural_models/rubert_cased_L-12_H-768_A-12_pt",
+    "tokenizer_model_path": "/data/aobuhtijarov/models/rubert_cased_L-12_H-768_A-12_pt",
+    "enc_model_path": "/data/aobuhtijarov/models/pretrained_enc_8_layers",
+    "dec_model_path": "/data/aobuhtijarov/models/pretrained_dec_6_layers",
     "agency_list": ["ТАСС", "РИАМО", "RT на русском", "Новости Мойка78"],
     "max_tokens_text": 250,
     "max_tokens_title": 48,
