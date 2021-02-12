@@ -10,8 +10,8 @@
     "eval_steps": 500,
     "save_steps": 500,
     "logging_steps": 100,
-    "enc_lr": 0.00002,
-    "dec_lr": 0.0002,
-    "warmup_steps": 1800,
+    "enc_lr": 0.00001,
+    "dec_lr": 0.00007,
+    "warmup_steps": 4000,
     "max_steps": 20000,
 }
