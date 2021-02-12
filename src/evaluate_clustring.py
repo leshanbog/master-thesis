@@ -30,17 +30,8 @@ from transformers import BertTokenizer, EncoderDecoderModel, logging
 from sklearn.cluster import AgglomerativeClustering
 
 
-from evaluation.clustering_utils import get_gold_markup, get_data_to_cluster, doc2vec_bert, calc_clustering_metrics
+from evaluation.clustering_utils import get_gold_markup, get_data_to_cluster, get_text_to_vector_func, calc_clustering_metrics
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
-
-
-def get_text_to_vector_func(text_to_vec_func, model, tokenizer):
-    if text_to_vec_func == 'bert-MeanSum':
-        return lambda doc: doc2vec_bert(doc, model, tokenizer, 'MeanSum')
-    elif text_to_vec_func == 'bert-FirstCLS':
-        return lambda doc: doc2vec_bert(doc, model, tokenizer, 'FirstCLS')
-    else:
-        raise NotImplementedError
 
 
 def get_clf_report(embeds, markup, url2record, dist_threshold):
