@@ -12,6 +12,6 @@
     "logging_steps": 100,
     "enc_lr": 0.00001,
     "dec_lr": 0.00007,
-    "warmup_steps": 4000,
-    "max_steps": 20000,
+    "warmup_steps": 2500,
+    "max_steps": 5000,
 }
