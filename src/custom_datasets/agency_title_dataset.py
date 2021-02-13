@@ -2,6 +2,19 @@ import torch
 from torch.utils.data import Dataset
 
 
+def is_ok_date(date, filter_date):
+    if filter_date is None:
+        return True
+    
+    return date.startswith(filter_date)
+
+
+def is_ok_agency(agency, agency_list):
+    if agency_list is None:
+        return True
+    
+    return agency in agency_list
+
 class AgencyTitleDataset(Dataset):
     def __init__(
         self,
@@ -12,16 +25,22 @@ class AgencyTitleDataset(Dataset):
         do_prepend_marker=False,
         max_tokens_text=196,
         max_tokens_title=40,
+        filter_date=None
     ):        
-        self.records = [r for r in records if r['agency'] in agency_list]
+        self.records = [
+            r for r in records if is_ok_agency(r['agency'], agency_list) and is_ok_date(r['date'], filter_date)
+        ]
+        
         self.tokenizer = tokenizer
         self.max_tokens_text = max_tokens_text
         self.max_tokens_title = max_tokens_title
 
         self.agency_to_special_token_id = agency_to_special_token_id
-        self.agency_to_target = {a: i for i, a in enumerate(sorted(agency_list))}
-        self.target_to_agency = {i: a for a, i in self.agency_to_target.items()}
         
+        if agency_list:
+            self.agency_to_target = {a: i for i, a in enumerate(sorted(agency_list))}
+            self.target_to_agency = {i: a for a, i in self.agency_to_target.items()}
+
         self.do_prepend_marker = do_prepend_marker # True if dataset is used for title_gen, False - for classification
 
     def __len__(self):

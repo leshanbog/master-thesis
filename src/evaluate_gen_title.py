@@ -13,7 +13,7 @@ import torch
 from readers.ria_reader import ria_reader
 from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
-from evaluation.gen_title_calculate_metrics import print_metrics
+from utils.gen_title_calculate_metrics import print_metrics
 
 def first_sent(x, token_id):
     lx = list(x)

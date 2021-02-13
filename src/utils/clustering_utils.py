@@ -6,9 +6,9 @@ from collections import defaultdict
 from sklearn.metrics import classification_report
 
 
-def doc2vec_bert(text, model, tokenizer, mode='MeanSum'):
+def doc2vec_bert(text, model, tokenizer, mode='MeanSum', device='cuda:0'):
     inp = torch.LongTensor(tokenizer.encode(text))[:tokenizer.max_tokens_text].unsqueeze(0)
-    output = model.encoder(inp)['last_hidden_state'][0]
+    output = model.encoder(inp.to(device))['last_hidden_state'][0]
 
     if mode == 'FirstCLS':
         return output[0]
