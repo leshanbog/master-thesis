@@ -11,6 +11,7 @@ from transformers import BertTokenizer, EncoderDecoderModel, logging
 import torch
 
 from readers.ria_reader import ria_reader
+from readers.tg_reader import tg_reader
 from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.gen_title_calculate_metrics import print_metrics
@@ -44,10 +45,10 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
     if is_multiple_ref:
         reference_sents = ref.split(" s_s ")
         decoded_sents = hyp.split("s_s")
-        hyp = [w.replace("<", "&lt;").replace(">", "&gt;").strip() for w in decoded_sents]
-        ref = [w.replace("<", "&lt;").replace(">", "&gt;").strip() for w in reference_sents]
-        hyp = " ".join(hyp)
-        ref = " ".join(ref)
+        hyp = [w.replace('[SEP]', '.').strip() for w in decoded_sents]
+        ref = [w.replace('[SEP]', '.').strip() for w in reference_sents]
+        hyp = ' '.join(hyp)
+        ref = ' '.join(ref)
     ref = ref.strip()
     hyp = hyp.strip().replace('[SEP]', '.')
     if detokenize_after:
@@ -111,19 +112,32 @@ def make_inference_and_save(
         test_file,
         test_sample_rate,
         enable_bottleneck,
-        out_path_prefix
+        cluster_model_file,
+        out_path_prefix,
+        dataset_type
 ):
     config = json.loads(jsonnet_evaluate_file(config_file))
 
-    print("Fetching data...")
-    test_records = [r for r in tqdm.tqdm(ria_reader(test_file)) if random.random() <= test_sample_rate]
-
-    print("Building datasets...")
     tokenizer_model_path = config.pop("tokenizer_model_path")
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
     max_tokens_text = config.pop("max_tokens_text", 196)
     max_tokens_title = config.pop("max_tokens_title", 48)
+
+    batch_size = config.pop("batch_size", 8)
+
+    print("Loading model...")
+    cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
+    model = cls.from_pretrained(eval_model_file)
+    model.eval()
+
+    print("Fetching data...")
+    if dataset_type == 'ria':
+        test_records = [r for r in tqdm.tqdm(ria_reader(test_file)) if random.random() <= test_sample_rate]
+    else:
+        test_records = [r for r in tqdm.tqdm(tg_reader(test_file)) if random.random() <= test_sample_rate]
+
+    print("Building datasets...")
 
     test_dataset = GenTitleDataset(
         test_records,
@@ -132,12 +146,10 @@ def make_inference_and_save(
         max_tokens_title=max_tokens_title
     )
 
-    print("Loading model...")
-    cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
-    model = cls.from_pretrained(eval_model_file)
-    model.eval()
-
-    batch_size = config.pop("batch_size", 8)
+    if cluster_model_file:
+        cluster_model = BottleneckEncoderDecoderModel.from_pretrained(cluster_model_file)
+        clusterer = Clusterer(cluster_model, test_records)
+        clusterer.perform_clustering()
 
     with open(out_path_prefix + 'prediction.txt', 'w', encoding='utf-8') as pf, \
             open(out_path_prefix + 'gold.txt', 'w', encoding='utf-8') as gf:
@@ -153,7 +165,6 @@ def make_inference_and_save(
                 for k in data.keys():
                     data[k] = torch.cat((data[k], test_dataset[j][k].unsqueeze(0)), dim=0)
 
-
             output_ids = model.generate(
                 **data,
                 decoder_start_token_id=model.config.decoder.pad_token_id,
@@ -167,7 +178,14 @@ def make_inference_and_save(
             ]
 
             for j in range(i, min(i + batch_size, len(test_dataset))):
-                pf.write(preds[j - i] + '\n')
+                if cluster_model_file:
+                    refs = []
+                    for r in clusterer.get_cluster_records(i):
+                        refs.append(r['title'])
+
+                    pf.write(' s_s '.join(refs) + '\n')
+                else:
+                    pf.write(preds[j - i] + '\n')
                 gf.write(test_dataset.get_strings(j)['title'] + '\n')
 
 
@@ -178,7 +196,9 @@ def evaluate_gen_title(
     test_file: str,
     test_sample_rate: float,
     out_dir: str,
+    dataset_type: str,
     enable_bottleneck: bool = False,
+    cluster_model_file: str = None
     detokenize_after: bool = False,
     tokenize_after: bool = False
 ):
@@ -191,7 +211,12 @@ def evaluate_gen_title(
     out_path_prefix += '-'
 
     if do_inference == '1':
-        make_inference_and_save(config_file, eval_model_file, test_file, test_sample_rate, enable_bottleneck, out_path_prefix)
+        make_inference_and_save(
+            config_file, eval_model_file, 
+            test_file, test_sample_rate, 
+            enable_bottleneck, cluster_model_file, 
+            out_path_prefix, dataset_type
+        )
 
     evaluate_and_print_metrics(
         out_path_prefix + 'prediction.txt',
@@ -209,7 +234,9 @@ if __name__ == "__main__":
     parser.add_argument("--test-file", type=str, required=True)
     parser.add_argument("--test-sample-rate", type=float, default=1.0)
     parser.add_argument("--out-dir", type=str, required=True)
+    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
+    parser.add_argument("--cluster-model-file", default=None, type=str)
     parser.add_argument("--detokenize-after", default=False, action='store_true')
     parser.add_argument("--tokenize-after", default=False, action='store_true')
 
