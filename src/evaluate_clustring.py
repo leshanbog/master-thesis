@@ -30,7 +30,7 @@ from transformers import BertTokenizer, EncoderDecoderModel, logging
 from sklearn.cluster import AgglomerativeClustering
 
 
-from evaluation.clustering_utils import get_gold_markup, get_data_to_cluster, get_text_to_vector_func, calc_clustering_metrics
+from utils.clustering_utils import get_gold_markup, get_data_to_cluster, get_text_to_vector_func, calc_clustering_metrics
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 
 
@@ -100,7 +100,7 @@ def perform_clustering_eval(config_file,
 
     for i, (url, record) in tqdm.tqdm(enumerate(url2record.items()), total=total_articles):
         text = record["title"] + ' ' + record["text"]
-        text = text.lower().replace('\xa0', ' ')
+        text = text.lower().replace('\xa0', ' ').strip()
         embeds[i] = text_to_vector_func(text).detach().numpy().ravel()
 
     print('Embeds shape =', embeds.shape)

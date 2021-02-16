@@ -15,6 +15,8 @@ from readers.tg_reader import tg_reader
 from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.gen_title_calculate_metrics import print_metrics
+from utils.clusterer import Clusterer
+
 
 def first_sent(x, token_id):
     lx = list(x)
@@ -107,14 +109,15 @@ def evaluate_and_print_metrics(
 
 
 def make_inference_and_save(
-        config_file,
-        eval_model_file,
-        test_file,
-        test_sample_rate,
-        enable_bottleneck,
-        cluster_model_file,
-        out_path_prefix,
-        dataset_type
+    config_file,
+    eval_model_file,
+    test_file,
+    test_sample_rate,
+    enable_bottleneck,
+    cluster_model_file,
+    clustering_dist_threshold,
+    out_path_prefix,
+    dataset_type,
 ):
     config = json.loads(jsonnet_evaluate_file(config_file))
 
@@ -147,8 +150,16 @@ def make_inference_and_save(
     )
 
     if cluster_model_file:
-        cluster_model = BottleneckEncoderDecoderModel.from_pretrained(cluster_model_file)
-        clusterer = Clusterer(cluster_model, test_records)
+        from utils.clustering_utils import get_text_to_vector_func
+        clusterer = Clusterer(
+            get_text_to_vector_func(
+                'bert-FirstCLS',
+                BottleneckEncoderDecoderModel.from_pretrained(cluster_model_file),
+                tokenizer),
+            test_records,
+            clustering_dist_threshold
+        )
+
         clusterer.perform_clustering()
 
     with open(out_path_prefix + 'prediction.txt', 'w', encoding='utf-8') as pf, \
@@ -198,7 +209,8 @@ def evaluate_gen_title(
     out_dir: str,
     dataset_type: str,
     enable_bottleneck: bool = False,
-    cluster_model_file: str = None
+    cluster_model_file: str = None,
+    clustering_dist_threshold: float = 0.18,
     detokenize_after: bool = False,
     tokenize_after: bool = False
 ):
@@ -214,7 +226,7 @@ def evaluate_gen_title(
         make_inference_and_save(
             config_file, eval_model_file, 
             test_file, test_sample_rate, 
-            enable_bottleneck, cluster_model_file, 
+            enable_bottleneck, cluster_model_file, clustering_dist_threshold,
             out_path_prefix, dataset_type
         )
 
@@ -237,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
     parser.add_argument("--cluster-model-file", default=None, type=str)
+    parser.add_argument("--clustering-dist-threshold", default=0.18, type=float)
     parser.add_argument("--detokenize-after", default=False, action='store_true')
     parser.add_argument("--tokenize-after", default=False, action='store_true')
 
