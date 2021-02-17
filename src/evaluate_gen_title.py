@@ -126,6 +126,7 @@ def make_inference_and_save(
 
     max_tokens_text = config.pop("max_tokens_text", 196)
     max_tokens_title = config.pop("max_tokens_title", 48)
+    setattr(tokenizer, 'max_tokens_text', max_tokens_text)
 
     batch_size = config.pop("batch_size", 8)
 
@@ -156,7 +157,7 @@ def make_inference_and_save(
                 'bert-FirstCLS',
                 BottleneckEncoderDecoderModel.from_pretrained(cluster_model_file),
                 tokenizer),
-            test_records,
+            test_dataset,
             clustering_dist_threshold
         )
 
@@ -191,13 +192,13 @@ def make_inference_and_save(
             for j in range(i, min(i + batch_size, len(test_dataset))):
                 if cluster_model_file:
                     refs = []
-                    for r in clusterer.get_cluster_records(i):
+                    for r in clusterer.get_cluster_records(j):
                         refs.append(r['title'])
 
-                    pf.write(' s_s '.join(refs) + '\n')
+                    gf.write(' s_s '.join(refs) + '\n')
                 else:
-                    pf.write(preds[j - i] + '\n')
-                gf.write(test_dataset.get_strings(j)['title'] + '\n')
+                    gf.write(test_dataset.get_strings(j)['title'] + '\n')
+                pf.write(preds[j - i] + '\n')
 
 
 def evaluate_gen_title(

@@ -1,6 +1,7 @@
 from sklearn.cluster import AgglomerativeClustering
 from collections import defaultdict
 import numpy as np
+import tqdm
 
 
 class Clusterer:
@@ -9,7 +10,7 @@ class Clusterer:
         self.dataset = dataset
         self.dist_threshold = dist_threshold
         self.dates = dates
-        self.graph = np.array([list() for _ in range(len(self.dataset))])
+        self.graph = [list() for _ in range(len(self.dataset))]
 
     def perform_clustering(self):
         date_to_indices = self.__split_dataset_by_dates()
@@ -18,12 +19,12 @@ class Clusterer:
             embeds = np.empty((len(date_to_indices[date]), 768))
             subindex_to_index = dict()
 
-            for i in range(embeds.shape[0]):
+            for i in tqdm.trange(embeds.shape[0], desc='compute embeds'):
                 dataset_index = date_to_indices[date][i]
                 subindex_to_index[i] = dataset_index
-                text = self.dataset[dataset_index]['title'] + ' ' + self.dataset[dataset_index]['text']
+                text = self.dataset.get_strings(dataset_index)['title'] + ' ' + self.dataset.get_strings(dataset_index)['text']
                 text = text.lower().replace('\xa0', ' ').strip()
-                embeds[i] = text_to_vector_func(text).detach().numpy().ravel()
+                embeds[i] = self.text_to_vector_func(text).detach().cpu().numpy().ravel()
 
             # TODO: precomputed affinity & custom distances
             clustering_model = AgglomerativeClustering(
@@ -35,7 +36,7 @@ class Clusterer:
 
             labels = clustering_model.fit_predict(embeds)
 
-            for i1 in range(embeds.shape[0]):
+            for i1 in tqdm.trange(embeds.shape[0], desc='filling graph'):
                 for i2 in range(i1 + 1, embeds.shape[0]):
                     if labels[i1] != labels[i2]:
                         continue
@@ -54,8 +55,8 @@ class Clusterer:
     def __split_dataset_by_dates(self):
         date_to_indices = defaultdict(list)
 
-        for i, r in enumerate(self.dataset):
-            cur_date = r['date'].split()[0]
+        for i in range(len(self.dataset)):
+            cur_date = self.dataset.get_strings(i)['date'].split()[0]
             if cur_date in self.dates:
                 date_to_indices[cur_date].append(i)
 

@@ -59,5 +59,6 @@ class GenTitleDataset(Dataset):
         record = self.records[index]
         return {
             'text': record["text"],
-            'title': record.get("title", "")
+            'title': record.get("title", ""),
+            'date': record.get('date', '-'),
         }
