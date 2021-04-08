@@ -1,4 +1,19 @@
 import torch
+import wandb
+import os
+
+def init_wandb(run_name, config):
+    os.environ['WANDB_LOG_MODEL'] = 'false'
+    os.environ['WANDB_WATCH'] = 'false'
+
+    wandb.login(key=os.environ['WANDB_API_KEY'])
+    wandb.init(project='master-thesis', name=run_name)
+
+    for k, v in config.items():
+        setattr(wandb.config, k, v)
+
+    setattr(wandb.config, 'run_id', wandb.run.id)
+
 
 def get_separate_lr_optimizer(model, enc_lr, dec_lr, warmup_steps, total_train_steps):
     from transformers import get_linear_schedule_with_warmup

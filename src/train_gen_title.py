@@ -4,6 +4,9 @@ import random
 import tqdm
 import torch
 
+import os
+import wandb
+
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, Trainer, TrainingArguments, logging
 
@@ -11,10 +14,11 @@ from readers.ria_reader import ria_reader
 from readers.tg_reader import tg_reader
 from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
-from utils.training_utils import get_separate_lr_optimizer
+from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
 
 def train_gen_title(
+    run_name: str,
     config_file: str,
     train_file: str,
     val_file: str,
@@ -30,27 +34,30 @@ def train_gen_title(
 
     config = json.loads(jsonnet_evaluate_file(config_file))
 
-    tokenizer_model_path = config.pop("tokenizer_model_path")
+    init_wandb(run_name, config)
+
+    tokenizer_model_path = config["tokenizer_model_path"]
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
-    max_tokens_text = config.pop("max_tokens_text", 250)
-    max_tokens_title = config.pop("max_tokens_title", 48)
+    max_tokens_text = config["max_tokens_text"]
+    max_tokens_title = config["max_tokens_title"]
 
     print("Initializing model...")
 
     cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
+
     if from_pretrained:
         model = cls.from_pretrained(from_pretrained)
     else:
-        enc_model_path = config.pop("enc_model_path")
-        dec_model_path = config.pop("dec_model_path")
+        enc_model_path = config["enc_model_path"]
+        dec_model_path = config["dec_model_path"]
         model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
     print("Model: ")
     print(model)
 
     if dataset_type == 'ria':
-        print("Fetching data...")
+        print("Fetching RIA data...")
         train_records = [r for r in tqdm.tqdm(ria_reader(train_file)) if random.random() <= train_sample_rate]
         val_records = [r for r in tqdm.tqdm(ria_reader(val_file)) if random.random() <= val_sample_rate]
 
@@ -68,7 +75,7 @@ def train_gen_title(
             max_tokens_text=max_tokens_text,
             max_tokens_title=max_tokens_title)
     else:
-        print("Fetching data...")
+        print("Fetching TG data...")
         all_records = [r for r in tqdm.tqdm(tg_reader(train_file)) if random.random() <= train_sample_rate]
 
         print("Building datasets...")
@@ -84,15 +91,15 @@ def train_gen_title(
                                                                    [train_size, len(full_dataset) - train_size])
 
     print("Training model...")
-    batch_size = config.pop("batch_size", 4)
-    eval_steps = config.pop("eval_steps", 500)
-    save_steps = config.pop("save_steps", 500)
-    logging_steps = config.pop("logging_steps", 100)
-    enc_lr = config.pop("enc_lr", 5e-5)
-    dec_lr = config.pop("dec_lr", 5e-3)
-    warmup_steps = config.pop("warmup_steps", 1000)
-    max_steps = config.pop("max_steps", 10000)
-    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 125)
+    batch_size = config["batch_size"]
+    eval_steps = config["eval_steps"]
+    save_steps = config["save_steps"]
+    logging_steps = config["logging_steps"]
+    enc_lr = config["enc_lr"]
+    dec_lr = config["dec_lr"]
+    warmup_steps = config["warmup_steps"]
+    max_steps = config["max_steps"]
+    gradient_accumulation_steps = config["gradient_accumulation_steps"]
 
     opt = get_separate_lr_optimizer(model, enc_lr, dec_lr, warmup_steps, max_steps)
 
@@ -117,7 +124,8 @@ def train_gen_title(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        optimizers=opt
+        optimizers=opt,
+        report_to='wandb',
     )
 
     trainer.train(checkpoint)
@@ -126,13 +134,14 @@ def train_gen_title(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--run-name", type=str, required=True)
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
     parser.add_argument("--val-file", type=str, required=False)
     parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
     parser.add_argument("--val-sample-rate", type=float, default=1.0)
-    parser.add_argument("--output-model-path", type=str, default="models/gen_title")
+    parser.add_argument("--output-model-path", type=str, default='models/gen_title')
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
     parser.add_argument("--from-pretrained", type=str, default=None)
     parser.add_argument("--checkpoint", type=str, default=None)
