@@ -1,1 +1,0 @@
-CUDA_VISIBLE_DEVICES=4 python3 training/train_gen_title.py --config-file configs/gen_title.jsonnet --train-file /data/aobuhtijarov/ria/ria.shuffled.train.json --val-file /data/aobuhtijarov/ria/ria.shuffled.val.json --val-sample-rate 0.05

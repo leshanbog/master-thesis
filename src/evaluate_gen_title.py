@@ -5,6 +5,7 @@ import tqdm
 import re
 import razdel
 import nltk
+import os
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, logging
@@ -16,6 +17,7 @@ from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.gen_title_calculate_metrics import print_metrics
 from utils.clusterer import Clusterer
+from utils.training_utils import init_wandb
 
 
 def first_sent(x, token_id):
@@ -105,8 +107,9 @@ def evaluate_and_print_metrics(
             refs.append(ref)
             hyps.append(hyp)
 
-    print_metrics(refs, hyps, language=language)
+    wandb.run.summary['a'] = 1
 
+    print_metrics(refs, hyps, language=language)
 
 def make_inference_and_save(
     config_file,
@@ -121,24 +124,25 @@ def make_inference_and_save(
 ):
     config = json.loads(jsonnet_evaluate_file(config_file))
 
-    tokenizer_model_path = config.pop("tokenizer_model_path")
+    tokenizer_model_path = config["tokenizer_model_path"]
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
-    max_tokens_text = config.pop("max_tokens_text", 196)
-    max_tokens_title = config.pop("max_tokens_title", 48)
+    max_tokens_text = config["max_tokens_text"]
+    max_tokens_title = config["max_tokens_title"]
     setattr(tokenizer, 'max_tokens_text', max_tokens_text)
 
-    batch_size = config.pop("batch_size", 8)
+    batch_size = config["batch_size"]
 
     print("Loading model...")
     cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
     model = cls.from_pretrained(eval_model_file)
     model.eval()
 
-    print("Fetching data...")
     if dataset_type == 'ria':
+        print("Fetching RIA data...")
         test_records = [r for r in tqdm.tqdm(ria_reader(test_file)) if random.random() <= test_sample_rate]
     else:
+        print("Fetching TG data...")
         test_records = [r for r in tqdm.tqdm(tg_reader(test_file)) if random.random() <= test_sample_rate]
 
     print("Building datasets...")
@@ -202,6 +206,7 @@ def make_inference_and_save(
 
 
 def evaluate_gen_title(
+    existing_run_name: str,
     config_file: str,
     do_inference: bool,
     eval_model_file: str,
@@ -216,8 +221,9 @@ def evaluate_gen_title(
     tokenize_after: bool = False
 ):
     logging.set_verbosity_info()
+    init_wandb(existing_run_name, None, True)
 
-    out_path_prefix = out_dir + '/' + eval_model_file[eval_model_file.index('checkpoint'):]
+    out_path_prefix = os.path.join(out_dir, eval_model_file[eval_model_file.index('checkpoint'):])
     if out_path_prefix[-1] == '/':
         out_path_prefix = out_path_prefix[:-1]
 
@@ -232,8 +238,8 @@ def evaluate_gen_title(
         )
 
     evaluate_and_print_metrics(
-        out_path_prefix + 'prediction.txt',
-        out_path_prefix + 'gold.txt',
+        os.path.join(out_path_prefix, 'prediction.txt'),
+        os.path.join(out_path_prefix, 'gold.txt'),
         detokenize_after=detokenize_after,
         tokenize_after=tokenize_after
     )
@@ -241,13 +247,14 @@ def evaluate_gen_title(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--existing-run-name", type=str, required=True)
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--do-inference", type=str, required=True)
     parser.add_argument("--eval-model-file", type=str, required=True)
     parser.add_argument("--test-file", type=str, required=True)
     parser.add_argument("--test-sample-rate", type=float, default=1.0)
     parser.add_argument("--out-dir", type=str, required=True)
-    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
+    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), required=True)
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
     parser.add_argument("--cluster-model-file", default=None, type=str)
     parser.add_argument("--clustering-dist-threshold", default=0.18, type=float)

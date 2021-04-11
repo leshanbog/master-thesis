@@ -10,6 +10,7 @@ from transformers import BertTokenizer, AutoModelForSequenceClassification, Trai
 
 from readers.tg_reader import tg_reader
 from datasets.agency_title_dataset import AgencyTitleDataset
+from utils.training_utils import init_wandb
 
 
 def compute_metrics(eval_pred):
@@ -20,6 +21,7 @@ def compute_metrics(eval_pred):
 
 
 def train_discriminator(
+    run_name: str,
     config_file: str,
     train_file: str,
     train_fraq: float,
@@ -27,8 +29,8 @@ def train_discriminator(
     output_model_path: str,
 ):
     logging.set_verbosity_info()
-
     config = json.loads(jsonnet_evaluate_file(config_file))
+    init_wandb(run_name, config)
     
     agency_list = config.pop('agency_list', ['ТАСС', 'РТ на русском'])
     print('Agency list:', agency_list)
@@ -67,16 +69,16 @@ def train_discriminator(
     save_steps = config.pop("save_steps", 100)
     logging_steps = config.pop("logging_steps", 25)
     learning_rate = config.pop("learning_rate", 5e-05)
-    warmup_steps = config.pop("warmup_steps", 150)
+    warmup_steps = config.pop("num_warmup_steps", 150)
     num_train_epochs = config.pop("num_train_epochs", 5)
     gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 25)
 
     training_args = TrainingArguments(
-
+       report_to='wandb',
     )
 
     trainer = Trainer(
-
+    
     )
 
     trainer.train()
@@ -86,11 +88,12 @@ def train_discriminator(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--run-name", type=str, required=True)
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
     parser.add_argument("--train-fraq", type=float, default=0.8)
-    parser.add_argument("--output-model-path", type=str, default="models/agency_discr")
+    parser.add_argument("--output-model-path", type=str, required=True)
 
     args = parser.parse_args()
     train_discriminator(**vars(args))

@@ -31,7 +31,6 @@ def train_gen_title(
     checkpoint: str = None
 ):
     logging.set_verbosity_info()
-
     config = json.loads(jsonnet_evaluate_file(config_file))
 
     init_wandb(run_name, config)
@@ -53,8 +52,9 @@ def train_gen_title(
         dec_model_path = config["dec_model_path"]
         model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
-    print("Model: ")
-    print(model)
+    # print("Model: ")
+    # print(model)
+    model.cuda()
 
     if dataset_type == 'ria':
         print("Fetching RIA data...")
@@ -97,7 +97,7 @@ def train_gen_title(
     logging_steps = config["logging_steps"]
     enc_lr = config["enc_lr"]
     dec_lr = config["dec_lr"]
-    warmup_steps = config["warmup_steps"]
+    warmup_steps = config["num_warmup_steps"]
     max_steps = config["max_steps"]
     gradient_accumulation_steps = config["gradient_accumulation_steps"]
 
@@ -116,7 +116,8 @@ def train_gen_title(
         save_steps=save_steps,
         eval_steps=eval_steps,
         save_total_limit=2,
-        max_steps=max_steps
+        max_steps=max_steps,
+        report_to='wandb',
     )
 
     trainer = Trainer(
@@ -125,7 +126,6 @@ def train_gen_title(
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         optimizers=opt,
-        report_to='wandb',
     )
 
     trainer.train(checkpoint)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
     parser.add_argument("--val-sample-rate", type=float, default=1.0)
-    parser.add_argument("--output-model-path", type=str, default='models/gen_title')
+    parser.add_argument("--output-model-path", type=str, required=True)
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
     parser.add_argument("--from-pretrained", type=str, default=None)
     parser.add_argument("--checkpoint", type=str, default=None)

@@ -9,10 +9,11 @@ from transformers import BertTokenizer, EncoderDecoderModel, Trainer, TrainingAr
 
 from readers.tg_reader import tg_reader
 from custom_datasets.agency_title_dataset import AgencyTitleDataset
-from utils.training_utils import get_separate_lr_optimizer
+from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
 
 def train_style_gen_title(
+        run_name: str,
         config_file: str,
         train_file: str,
         train_sample_rate: float,
@@ -21,25 +22,25 @@ def train_style_gen_title(
         checkpoint: str = None
 ):
     logging.set_verbosity_info()
-
     config = json.loads(jsonnet_evaluate_file(config_file))
+    init_wandb(run_name, config)
 
-    agency_list = config.pop('agency_list', ['ТАСС', 'РТ на русском'])
+    agency_list = config['agency_list']
     print('Agency list:', agency_list)
 
-    tokenizer_model_path = config.pop("tokenizer_model_path")
+    tokenizer_model_path = config["tokenizer_model_path"]
     tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
 
-    max_tokens_text = config.pop("max_tokens_text", 250)
-    max_tokens_title = config.pop("max_tokens_title", 48)
+    max_tokens_text = config["max_tokens_text"]
+    max_tokens_title = config["max_tokens_title"]
 
     print("Initializing model...")
 
     if from_pretrained:
         model = EncoderDecoderModel.from_pretrained(from_pretrained)
     else:
-        enc_model_path = config.pop("enc_model_path")
-        dec_model_path = config.pop("dec_model_path")
+        enc_model_path = config["enc_model_path"]
+        dec_model_path = config["dec_model_path"]
         model = EncoderDecoderModel.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
     print("Model: ")
@@ -68,15 +69,15 @@ def train_style_gen_title(
     print(f"Train dataset length = {len(train_dataset)}\nVal dataset length = {len(val_dataset)}") 
 
     print("Training model...")
-    batch_size = config.pop("batch_size", 4)
-    eval_steps = config.pop("eval_steps", 500)
-    save_steps = config.pop("save_steps", 500)
-    logging_steps = config.pop("logging_steps", 100)
-    enc_lr = config.pop("enc_lr", 5e-5)
-    dec_lr = config.pop("dec_lr", 5e-3)
-    warmup_steps = config.pop("warmup_steps", 1000)
-    max_steps = config.pop("max_steps", 10000)
-    gradient_accumulation_steps = config.pop("gradient_accumulation_steps", 125)
+    batch_size = config["batch_size"]
+    eval_steps = config["eval_steps"]
+    save_steps = config["save_steps"]
+    logging_steps = config["logging_steps"]
+    enc_lr = config["enc_lr"]
+    dec_lr = config["dec_lr"]
+    warmup_steps = config["num_warmup_steps"]
+    max_steps = config["max_steps"]
+    gradient_accumulation_steps = config["gradient_accumulation_steps"]
 
     opt = get_separate_lr_optimizer(model, enc_lr, dec_lr, warmup_steps, max_steps)
 
@@ -93,7 +94,8 @@ def train_style_gen_title(
         save_steps=save_steps,
         eval_steps=eval_steps,
         save_total_limit=2,
-        max_steps=max_steps
+        max_steps=max_steps,
+        report_to='wandb',
     )
 
     trainer = Trainer(
@@ -101,7 +103,7 @@ def train_style_gen_title(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        optimizers=opt
+        optimizers=opt,
     )
 
     trainer.train(checkpoint)
@@ -110,6 +112,7 @@ def train_style_gen_title(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--run-name", type=str, required=True)
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
