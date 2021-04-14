@@ -2,14 +2,18 @@ import torch
 import wandb
 import os
 
-def init_wandb(run_name, config, is_adding_eval_info=False):
+def init_wandb(run_name, config, run_id=None):
     os.environ['WANDB_LOG_MODEL'] = 'false'
     os.environ['WANDB_WATCH'] = 'false'
 
     wandb.login()
-    wandb.init(project='master-thesis', name=run_name)
 
-    if not is_adding_eval_info:
+    if run_id:
+        wandb.init(project='master-thesis', name=run_name, resume=True, id=run_id)
+    else:
+        wandb.init(project='master-thesis', name=run_name)
+
+    if run_id is None:
         for k, v in config.items():
             setattr(wandb.config, k, v)
 

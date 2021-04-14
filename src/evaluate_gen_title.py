@@ -1,3 +1,4 @@
+import os
 import argparse
 import json
 import random
@@ -5,11 +6,11 @@ import tqdm
 import re
 import razdel
 import nltk
-import os
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, logging
 import torch
+import wandb
 
 from readers.ria_reader import ria_reader
 from readers.tg_reader import tg_reader
@@ -47,17 +48,21 @@ def punct_detokenize(text):
 
 def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=False, tokenize_after=False, lower=False):
     if is_multiple_ref:
+        # TODO: Watch this carefully
         reference_sents = ref.split(" s_s ")
         decoded_sents = hyp.split("s_s")
         hyp = [w.replace('[SEP]', '.').strip() for w in decoded_sents]
         ref = [w.replace('[SEP]', '.').strip() for w in reference_sents]
         hyp = ' '.join(hyp)
         ref = ' '.join(ref)
+
     ref = ref.strip()
     hyp = hyp.strip().replace('[SEP]', '.')
+
     if detokenize_after:
         hyp = punct_detokenize(hyp)
         ref = punct_detokenize(ref)
+
     if tokenize_after:
         if language == "ru":
             hyp = " ".join([token.text for token in razdel.tokenize(hyp)])
@@ -65,9 +70,11 @@ def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=Fals
         else:
             hyp = " ".join([token for token in nltk.word_tokenize(hyp)])
             ref = " ".join([token for token in nltk.word_tokenize(ref)])
+
     if lower:
         hyp = hyp.lower()
         ref = ref.lower()
+
     return ref, hyp
 
 
@@ -83,15 +90,19 @@ def evaluate_and_print_metrics(
 ):
     hyps = []
     refs = []
+    
+    table = wandb.Table(columns=['Reference', 'Prediction', 'Reference processed', 'Prediction processed'])
 
     with open(gold_path, "r") as gold, open(predicted_path, "r") as pred:
         for i, (ref, hyp) in enumerate(zip(gold, pred)):
+
             if i % 500 == 0:
-                print(ref)
-                print(hyp)
+                ref_before = ref
+                hyp_before = hyp
 
             if max_count is not None and i >= max_count:
                 break
+
             ref, hyp = postprocess(ref, hyp, language, is_multiple_ref, detokenize_after, tokenize_after, lower)
             if not hyp:
                 print("Empty hyp for ref: ", ref)
@@ -100,15 +111,12 @@ def evaluate_and_print_metrics(
                 continue
 
             if i % 500 == 0:
-                print(ref)
-                print(hyp)
-                print('-' * 60)
+                table.add_data(ref_before, hyp_before, ref, hyp)
 
             refs.append(ref)
             hyps.append(hyp)
 
-    wandb.run.summary['a'] = 1
-
+    wandb.run.summary.update({'Examples': table})
     print_metrics(refs, hyps, language=language)
 
 def make_inference_and_save(
@@ -137,6 +145,7 @@ def make_inference_and_save(
     cls = BottleneckEncoderDecoderModel if enable_bottleneck else EncoderDecoderModel
     model = cls.from_pretrained(eval_model_file)
     model.eval()
+    model.cuda()
 
     if dataset_type == 'ria':
         print("Fetching RIA data...")
@@ -181,6 +190,9 @@ def make_inference_and_save(
                 for k in data.keys():
                     data[k] = torch.cat((data[k], test_dataset[j][k].unsqueeze(0)), dim=0)
 
+            data['input_ids'] = data['input_ids'].cuda()
+            data['attention_mask'] = data['attention_mask'].cuda()
+
             output_ids = model.generate(
                 **data,
                 decoder_start_token_id=model.config.decoder.pad_token_id,
@@ -204,9 +216,9 @@ def make_inference_and_save(
                     gf.write(test_dataset.get_strings(j)['title'] + '\n')
                 pf.write(preds[j - i] + '\n')
 
-
 def evaluate_gen_title(
     existing_run_name: str,
+    existing_run_id: str,
     config_file: str,
     do_inference: bool,
     eval_model_file: str,
@@ -221,7 +233,7 @@ def evaluate_gen_title(
     tokenize_after: bool = False
 ):
     logging.set_verbosity_info()
-    init_wandb(existing_run_name, None, True)
+    init_wandb(existing_run_name, None, existing_run_id)
 
     out_path_prefix = os.path.join(out_dir, eval_model_file[eval_model_file.index('checkpoint'):])
     if out_path_prefix[-1] == '/':
@@ -238,16 +250,19 @@ def evaluate_gen_title(
         )
 
     evaluate_and_print_metrics(
-        os.path.join(out_path_prefix, 'prediction.txt'),
-        os.path.join(out_path_prefix, 'gold.txt'),
+        out_path_prefix + 'prediction.txt',
+        out_path_prefix + 'gold.txt',
         detokenize_after=detokenize_after,
-        tokenize_after=tokenize_after
+        tokenize_after=tokenize_after,
+        is_multiple_ref=(cluster_model_file is not None),
+        lower=True,
     )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--existing-run-name", type=str, required=True)
+    parser.add_argument("--existing-run-id", type=str, required=True)
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--do-inference", type=str, required=True)
     parser.add_argument("--eval-model-file", type=str, required=True)
