@@ -1,2 +1,6 @@
 __pycache__
 src/wandb
+wandb
+.vscode
+results
+*.ipynb_checkpoints

@@ -8,7 +8,7 @@ from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, Trainer, TrainingArguments, logging
 
 from readers.tg_reader import tg_reader
-from custom_datasets.agency_title_dataset import AgencyTitleDataset
+from custom_datasets.agency_title_dataset import AgencyTitleDatasetGeneration
 from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
 
@@ -43,9 +43,6 @@ def train_style_gen_title(
         dec_model_path = config["dec_model_path"]
         model = EncoderDecoderModel.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
-    print("Model: ")
-    print(model)
-
     print("Fetching data...")
     all_records = [r for r in tqdm.tqdm(tg_reader(train_file)) if random.random() <= train_sample_rate]
 
@@ -53,14 +50,11 @@ def train_style_gen_title(
 
     agency_to_special_token_id = {a: tokenizer.vocab[f'[unused{i+1}]'] for i, a in enumerate(agency_list)}
 
-    full_dataset = AgencyTitleDataset(
-        all_records,
-        tokenizer,
-        agency_list,
-        agency_to_special_token_id,
-        do_prepend_marker=True,
-        max_tokens_text=max_tokens_text,
-        max_tokens_title=max_tokens_title)
+    full_dataset = AgencyTitleDatasetGeneration(
+        all_records, tokenizer, 
+        filter_agencies=list(agency_to_special_token_id.keys()), agency_to_special_token_id=agency_to_special_token_id,
+        max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+    )
 
     train_size = int(0.9 * len(full_dataset))
     train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,

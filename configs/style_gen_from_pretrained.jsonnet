@@ -1,0 +1,15 @@
+{
+    "tokenizer_model_path": "/home/aobuhtijarov/models/rubert_cased_L-12_H-768_A-12_pt",
+    "agency_list": ["ТАСС", "RT на русском", "РБК"],
+    "max_tokens_text": 250,
+    "max_tokens_title": 48,
+    "gradient_accumulation_steps": 125,
+    "batch_size": 4,
+    "eval_steps": 250,
+    "save_steps": 500,
+    "logging_steps": 100,
+    "enc_lr": 0.000001,
+    "dec_lr": 0.000007,
+    "num_warmup_steps": 3500,
+    "max_steps": 5000,
+}

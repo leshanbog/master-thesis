@@ -5,12 +5,13 @@ import tqdm
 
 
 class Clusterer:
-    def __init__(self, text_to_vector_func, dataset, dist_threshold, dates=('2020-05-12', )):
+    def __init__(self, text_to_vector_func, dataset, dist_threshold, dates):
         self.text_to_vector_func = text_to_vector_func
         self.dataset = dataset
         self.dist_threshold = dist_threshold
         self.dates = dates
         self.graph = [list() for _ in range(len(self.dataset))]
+
 
     def perform_clustering(self):
         date_to_indices = self.__split_dataset_by_dates()
@@ -19,10 +20,11 @@ class Clusterer:
             embeds = np.empty((len(date_to_indices[date]), 768))
             subindex_to_index = dict()
 
-            for i in tqdm.trange(embeds.shape[0], desc='compute embeds'):
+            for i in tqdm.trange(embeds.shape[0], desc='Compute embeds'):
                 dataset_index = date_to_indices[date][i]
                 subindex_to_index[i] = dataset_index
-                text = self.dataset.get_strings(dataset_index)['title'] + ' ' + self.dataset.get_strings(dataset_index)['text']
+                text = self.dataset.get_strings(dataset_index)['title'] + \
+                    ' ' + self.dataset.get_strings(dataset_index)['text']
                 text = text.lower().replace('\xa0', ' ').strip()
                 embeds[i] = self.text_to_vector_func(text).detach().cpu().numpy().ravel()
 
@@ -36,7 +38,7 @@ class Clusterer:
 
             labels = clustering_model.fit_predict(embeds)
 
-            for i1 in tqdm.trange(embeds.shape[0], desc='filling graph'):
+            for i1 in tqdm.trange(embeds.shape[0], desc='Filling graph'):
                 for i2 in range(i1 + 1, embeds.shape[0]):
                     if labels[i1] != labels[i2]:
                         continue
@@ -46,11 +48,14 @@ class Clusterer:
                     self.graph[g1].append(g2)
                     self.graph[g2].append(g1)
 
+
     def get_cluster_records(self, i):
         yield self.dataset.get_strings(i)
 
-        for nei in self.graph[i]:
-            yield self.dataset.get_strings(nei)
+        if len(self.graph[i]) < 8:
+            for nei in self.graph[i]:
+                yield self.dataset.get_strings(nei)
+
 
     def __split_dataset_by_dates(self):
         date_to_indices = defaultdict(list)

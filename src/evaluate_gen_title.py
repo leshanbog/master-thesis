@@ -15,6 +15,7 @@ import wandb
 from readers.ria_reader import ria_reader
 from readers.tg_reader import tg_reader
 from custom_datasets.gen_title_dataset import GenTitleDataset
+from custom_datasets.agency_title_dataset import AgencyTitleDatasetGeneration
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.gen_title_calculate_metrics import print_metrics
 from utils.clusterer import Clusterer
@@ -48,32 +49,34 @@ def punct_detokenize(text):
 
 def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=False, tokenize_after=False, lower=False):
     if is_multiple_ref:
-        # TODO: Watch this carefully
         reference_sents = ref.split(" s_s ")
         decoded_sents = hyp.split("s_s")
         hyp = [w.replace('[SEP]', '.').strip() for w in decoded_sents]
         ref = [w.replace('[SEP]', '.').strip() for w in reference_sents]
-        hyp = ' '.join(hyp)
-        ref = ' '.join(ref)
-
-    ref = ref.strip()
-    hyp = hyp.strip().replace('[SEP]', '.')
+        assert len(hyp) == 1
+        hyp = hyp[0]
+    else:
+        assert type(ref) == str
+        ref = [ref]
+    
+    ref = [x.strip().replace('\xa0', ' ') for x in ref]
+    hyp = hyp.strip().replace('[SEP]', '.').replace('\xa0', ' ')
 
     if detokenize_after:
         hyp = punct_detokenize(hyp)
-        ref = punct_detokenize(ref)
+        ref = [punct_detokenize(x) for x in ref]
 
     if tokenize_after:
         if language == "ru":
-            hyp = " ".join([token.text for token in razdel.tokenize(hyp)])
-            ref = " ".join([token.text for token in razdel.tokenize(ref)])
+            hyp = " ".join([token.text for token in razdel.tokenize(hyp)])    
+            ref = [" ".join([token.text for token in razdel.tokenize(x)]) for x in ref]
         else:
             hyp = " ".join([token for token in nltk.word_tokenize(hyp)])
-            ref = " ".join([token for token in nltk.word_tokenize(ref)])
+            ref = [ " ".join([token for token in nltk.word_tokenize(x)]) for x in ref]
 
     if lower:
         hyp = hyp.lower()
-        ref = ref.lower()
+        ref = [x.lower() for x in ref]
 
     return ref, hyp
 
@@ -86,7 +89,8 @@ def evaluate_and_print_metrics(
     is_multiple_ref=False,
     detokenize_after=False,
     tokenize_after=False,
-    lower=False
+    lower=False,
+    are_clusters_used=False,
 ):
     hyps = []
     refs = []
@@ -116,8 +120,12 @@ def evaluate_and_print_metrics(
             refs.append(ref)
             hyps.append(hyp)
 
-    wandb.run.summary.update({'Examples': table})
-    print_metrics(refs, hyps, language=language)
+    if are_clusters_used:
+        wandb.run.summary.update({'Examples with multiple references': table})
+    else:
+        wandb.run.summary.update({'Examples': table})
+
+    print_metrics(refs, hyps, language=language, are_clusters_used=are_clusters_used)
 
 def make_inference_and_save(
     config_file,
@@ -129,6 +137,7 @@ def make_inference_and_save(
     clustering_dist_threshold,
     out_path_prefix,
     dataset_type,
+    style_model_eval,
 ):
     config = json.loads(jsonnet_evaluate_file(config_file))
 
@@ -147,21 +156,38 @@ def make_inference_and_save(
     model.eval()
     model.cuda()
 
+    if cluster_model_file:
+        test_sample_rate = 1.
+        filter_dates = ('2020-05-12', )
+    else:
+        filter_dates = None
+
     if dataset_type == 'ria':
         print("Fetching RIA data...")
         test_records = [r for r in tqdm.tqdm(ria_reader(test_file)) if random.random() <= test_sample_rate]
     else:
         print("Fetching TG data...")
-        test_records = [r for r in tqdm.tqdm(tg_reader(test_file)) if random.random() <= test_sample_rate]
+        test_records = [r for r in tqdm.tqdm(tg_reader(test_file, filter_dates=filter_dates)) 
+            if random.random() <= test_sample_rate]
 
     print("Building datasets...")
 
-    test_dataset = GenTitleDataset(
-        test_records,
-        tokenizer,
-        max_tokens_text=max_tokens_text,
-        max_tokens_title=max_tokens_title
-    )
+    if style_model_eval:
+        agency_list = config['agency_list']
+        agency_to_special_token_id = {a: tokenizer.vocab[f'[unused{i+1}]'] for i, a in enumerate(agency_list)}
+
+        test_dataset = AgencyTitleDatasetGeneration(
+            test_records, tokenizer,
+            filter_agencies=None, agency_to_special_token_id=agency_to_special_token_id,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+    else:
+        test_dataset = GenTitleDataset(
+            test_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+
+    print('Dataset size:', len(test_dataset))
 
     if cluster_model_file:
         from utils.clustering_utils import get_text_to_vector_func
@@ -171,7 +197,8 @@ def make_inference_and_save(
                 BottleneckEncoderDecoderModel.from_pretrained(cluster_model_file),
                 tokenizer),
             test_dataset,
-            clustering_dist_threshold
+            clustering_dist_threshold,
+            dates=filter_dates,
         )
 
         clusterer.perform_clustering()
@@ -216,6 +243,7 @@ def make_inference_and_save(
                     gf.write(test_dataset.get_strings(j)['title'] + '\n')
                 pf.write(preds[j - i] + '\n')
 
+
 def evaluate_gen_title(
     existing_run_name: str,
     existing_run_id: str,
@@ -229,6 +257,7 @@ def evaluate_gen_title(
     enable_bottleneck: bool = False,
     cluster_model_file: str = None,
     clustering_dist_threshold: float = 0.18,
+    style_model_eval: bool = False,
     detokenize_after: bool = False,
     tokenize_after: bool = False
 ):
@@ -246,7 +275,8 @@ def evaluate_gen_title(
             config_file, eval_model_file, 
             test_file, test_sample_rate, 
             enable_bottleneck, cluster_model_file, clustering_dist_threshold,
-            out_path_prefix, dataset_type
+            out_path_prefix, dataset_type,
+            style_model_eval
         )
 
     evaluate_and_print_metrics(
@@ -256,6 +286,7 @@ def evaluate_gen_title(
         tokenize_after=tokenize_after,
         is_multiple_ref=(cluster_model_file is not None),
         lower=True,
+        are_clusters_used=(cluster_model_file is not None)
     )
 
 
@@ -273,6 +304,7 @@ if __name__ == "__main__":
     parser.add_argument("--enable-bottleneck", default=False, action='store_true')
     parser.add_argument("--cluster-model-file", default=None, type=str)
     parser.add_argument("--clustering-dist-threshold", default=0.18, type=float)
+    parser.add_argument("--style-model-eval", default=False, action='store_true')  # it means we evaluating model, that can generate with different styles
     parser.add_argument("--detokenize-after", default=False, action='store_true')
     parser.add_argument("--tokenize-after", default=False, action='store_true')
 
