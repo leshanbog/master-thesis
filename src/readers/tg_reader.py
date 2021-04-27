@@ -6,7 +6,7 @@ def tg_reader(path, agency_list=None, filter_dates=None):
     data = pd.read_json(path, lines=True)
     for i in range(len(data)):
         text = data.iloc[i]['text'].lower().replace('\xa0', ' ').replace('\n', ' ').strip()
-        title = data.iloc[i]['title'].lower()
+        title = data.iloc[i]['title'].lower().replace('\xa0', ' ').replace('\n', ' ').strip()
         try:
             date = str(datetime.fromtimestamp(data.iloc[i]['timestamp']))
         except TypeError:

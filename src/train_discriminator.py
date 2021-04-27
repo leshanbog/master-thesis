@@ -3,6 +3,7 @@ import json
 import random
 import tqdm
 import torch
+import wandb
 import numpy as np
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
@@ -19,7 +20,6 @@ def compute_metrics(pred):
     return {
         'accuracy': np.mean(labels == preds)
     }
-
 
 def train_discriminator(
     run_name: str,
@@ -57,6 +57,9 @@ def train_discriminator(
     train_size = int(train_fraq * len(full_dataset))
     train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, len(full_dataset) - train_size])
     
+    wandb.summary['Train dataset size'] = len(train_dataset)
+    wandb.summary['Test dataset size'] = len(val_dataset)
+
     print("Initializing model...")
     model = AutoModelForSequenceClassification.from_pretrained(
         tokenizer_model_path, 
@@ -84,6 +87,8 @@ def train_discriminator(
         overwrite_output_dir=False,
         logging_steps=logging_steps,
         num_train_epochs=num_train_epochs,
+        save_total_limit=1,
+        weight_decay=0.01,
         report_to='wandb',
     )
 

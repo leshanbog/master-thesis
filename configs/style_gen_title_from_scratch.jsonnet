@@ -2,7 +2,7 @@
     "tokenizer_model_path": "/home/aobuhtijarov/models/rubert_cased_L-12_H-768_A-12_pt",
     "enc_model_path": "/home/aobuhtijarov/models/pretrained_enc_8_layers",
     "dec_model_path": "/home/aobuhtijarov/models/pretrained_dec_6_layers",
-    "agency_list": ["ТАСС", "RT на русском", "РБК"],
+    "agency_list": ["РИА Новости", "lenta.ru"],
     "max_tokens_text": 250,
     "max_tokens_title": 48,
     "gradient_accumulation_steps": 100,
