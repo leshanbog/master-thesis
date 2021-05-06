@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime
+from .text_normalizer import normalize
 
 
 def tg_reader(path, agency_list=None, filter_dates=None):
@@ -18,8 +19,8 @@ def tg_reader(path, agency_list=None, filter_dates=None):
             continue
 
         yield {
-            'text': text,
-            'title': title,
+            'text': normalize(text),
+            'title': normalize(title),
             'agency': data.iloc[i]['site_name'],
             'date': date,
         }

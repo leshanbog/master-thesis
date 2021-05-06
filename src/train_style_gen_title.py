@@ -4,6 +4,7 @@ import random
 import tqdm
 import os
 import torch
+import wandb
 
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, Trainer, TrainingArguments, logging

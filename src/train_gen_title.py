@@ -10,8 +10,7 @@ import wandb
 from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, EncoderDecoderModel, Trainer, TrainingArguments, logging
 
-from readers.ria_reader import ria_reader
-from readers.tg_reader import tg_reader
+from readers import ria_reader, tg_reader, lenta_reader
 from custom_datasets.gen_title_dataset import GenTitleDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.training_utils import get_separate_lr_optimizer, init_wandb
@@ -74,7 +73,7 @@ def train_gen_title(
             tokenizer,
             max_tokens_text=max_tokens_text,
             max_tokens_title=max_tokens_title)
-    else:
+    elif dataset_type == 'tg':
         print("Fetching TG data...")
         all_records = [r for r in tqdm.tqdm(tg_reader(train_file)) if random.random() <= train_sample_rate]
 
@@ -89,6 +88,40 @@ def train_gen_title(
         train_size = int(0.995 * len(full_dataset))
         train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,
                                                                    [train_size, len(full_dataset) - train_size])
+    elif dataset_type == 'lenta-ria':
+        print('Fetching Lenta-RIA data...')
+        lenta_records = [r for r in tqdm.tqdm(lenta_reader(os.path.join(train_file, 'lenta/lenta-ru-news.train.csv')))]
+        lenta_records.extend(
+            [r for r in tqdm.tqdm(lenta_reader(os.path.join(train_file, 'lenta/lenta-ru-news.val.csv')))]
+        )
+
+        ria_records = [r for r in tqdm.tqdm(ria_reader(os.path.join(train_file, 'ria/ria.shuffled.train.json')))]
+        ria_records.extend(
+            [r for r in tqdm.tqdm(ria_reader(os.path.join(train_file, 'ria/ria.shuffled.val.json')))]
+        )
+
+        random.shuffle(ria_records)
+
+        all_records = [r for r in lenta_records if r['date'][:4] in ['2010', '2011', '2012', '2013', '2014']] + \
+            ria_records[:300000]
+
+        random.shuffle(all_records)
+
+        print("Building datasets...")
+
+        full_dataset = GenTitleDataset(
+            all_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+            
+        train_size = int(0.99 * len(full_dataset))
+        train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,
+                                                                   [train_size, len(full_dataset) - train_size])
+
+    wandb.summary.update({
+        'Train dataset size': len(train_dataset),
+        'Val dataset size': len(val_dataset)
+    })
 
     print("Training model...")
     batch_size = config["batch_size"]
@@ -138,7 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
     parser.add_argument("--val-file", type=str, required=False)
-    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg'), default='ria')
+    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg', 'lenta-ria'), default='ria')
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
     parser.add_argument("--val-sample-rate", type=float, default=1.0)
     parser.add_argument("--output-model-path", type=str, required=True)
