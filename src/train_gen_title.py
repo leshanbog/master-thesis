@@ -16,6 +16,11 @@ from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
 
+def reader(path):
+    with open(path, 'r') as f:
+        for line in f:
+            yield json.loads(line.strip())
+
 def train_gen_title(
     run_name: str,
     config_file: str,
@@ -100,6 +105,23 @@ def train_gen_title(
             [r for r in tqdm.tqdm(ria_reader(os.path.join(train_file, 'ria/ria.shuffled.val.json')))]
         )
 
+        records = [r for r in reader('/home/aobuhtijarov/datasets/full_lenta_ria.test.jsonl')]
+
+        filter_lenta = [
+            {'text': r['lenta_text'], 'title': r['lenta_title'], 'agency': 'lenta.ru', 'date': r['lenta_date']} 
+            for r in records
+        ]
+
+        filter_ria = [
+            {'text': r['ria_text'], 'title': r['ria_title'], 'agency': 'РИА Новости', 'date': r['lenta_date']} 
+            for r in records
+        ]
+
+        lenta_filter_titles = set(x['title'] for x in filter_lenta)
+        ria_filter_titles = set(x['title'] for x in filter_ria)
+        lenta_records = [r for r in lenta_records if r['title'] not in lenta_filter_titles]
+        ria_records = [r for r in ria_records if r['title'] not in ria_filter_titles]
+        
         random.shuffle(ria_records)
 
         all_records = [r for r in lenta_records if r['date'][:4] in ['2010', '2011', '2012', '2013', '2014']] + \

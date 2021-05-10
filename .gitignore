@@ -4,3 +4,5 @@ wandb
 .vscode
 results
 *.ipynb_checkpoints
+bert_ft
+bert_ft_on_tg_text

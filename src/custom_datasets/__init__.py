@@ -1,1 +1,2 @@
-from .lenta_ria_dataset import LentaRiaDataset
+from .lenta_ria_dataset import LentaRiaDataset, LentaRiaDatasetClassification
+from .agency_title_dataset import AgencyTitleDatasetClassification, AgencyTitleDatasetGeneration

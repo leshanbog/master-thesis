@@ -11,7 +11,7 @@ from _jsonnet import evaluate_file as jsonnet_evaluate_file
 from transformers import BertTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, logging
 
 from readers import tg_reader, ria_reader, lenta_reader
-from custom_datasets.agency_title_dataset import AgencyTitleDatasetClassification
+from custom_datasets import AgencyTitleDatasetClassification, LentaRiaDatasetClassification
 from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
 
@@ -38,9 +38,22 @@ def train_discriminator(
     agency_list = config['agency_list']
     print('Agency list:', agency_list)
 
+    max_tokens_text = config["max_tokens_text"]
+    max_tokens_title = config["max_tokens_title"]
+
+    tokenizer_model_path = config["tokenizer_model_path"]
+    tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
+
     print("Fetching data...")
     if dataset_type == 'tg':
         all_records = [r for r in tqdm.tqdm(tg_reader(train_file, agency_list))]
+        full_dataset = AgencyTitleDatasetClassification(
+            all_records,
+            tokenizer,
+            agency_list,
+            max_tokens_text=max_tokens_text,
+            max_tokens_title=max_tokens_title
+        )       
     elif dataset_type == 'lenta-ria':
         lenta_records = [r for r in tqdm.tqdm(lenta_reader(os.path.join(train_file, 'lenta/lenta-ru-news.train.csv')))]
         lenta_records.extend(
@@ -58,21 +71,18 @@ def train_discriminator(
             ria_records[:220000]
 
         random.shuffle(all_records)
+        full_dataset = AgencyTitleDatasetClassification(
+            all_records,
+            tokenizer,
+            agency_list,
+            max_tokens_text=max_tokens_text,
+            max_tokens_title=max_tokens_title
+        )        
+    elif dataset_type == 'lenta-ria-clusters':
+        full_dataset = LentaRiaDatasetClassification(train_file, tokenizer, agency_list,
+            max_tokens_text, max_tokens_title)
 
     print("Building datasets...")
-    tokenizer_model_path = config["tokenizer_model_path"]
-    tokenizer = BertTokenizer.from_pretrained(tokenizer_model_path, do_lower_case=False, do_basic_tokenize=False)
-
-    max_tokens_text = config["max_tokens_text"]
-    max_tokens_title = config["max_tokens_title"]
-
-    full_dataset = AgencyTitleDatasetClassification(
-        all_records,
-        tokenizer,
-        agency_list,
-        max_tokens_text=max_tokens_text,
-        max_tokens_title=max_tokens_title
-    )
     
     train_size = int(train_fraq * len(full_dataset))
     test_size = int((1-train_fraq) * 0.5 * len(full_dataset))
@@ -144,7 +154,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, required=True)
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
-    parser.add_argument("--dataset-type", type=str, required=True, choices=['tg', 'lenta-ria'])
+    parser.add_argument("--dataset-type", type=str, required=True, choices=['tg', 'lenta-ria', 'lenta-ria-clusters'])
     parser.add_argument("--train-fraq", type=float, default=0.91)
     parser.add_argument("--output-model-path", type=str, required=True)
 

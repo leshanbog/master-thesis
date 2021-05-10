@@ -3,6 +3,62 @@ from collections import Counter
 from rouge import Rouge
 from nltk.translate.bleu_score import corpus_bleu
 
+def first_sent(x, token_id):
+    lx = list(x)
+    if token_id in x:
+        return x[:lx.index(token_id)]
+    return x
+
+def punct_detokenize(text):
+    text = text.strip()
+    punctuation = ",.!?:;%"
+    closing_punctuation = ")]}"
+    opening_punctuation = "([}"
+    for ch in punctuation + closing_punctuation:
+        text = text.replace(" " + ch, ch)
+    for ch in opening_punctuation:
+        text = text.replace(ch + " ", ch)
+    res = [r'"\s[^"]+\s"', r"'\s[^']+\s'"]
+    for r in res:
+        for f in re.findall(r, text, re.U):
+            text = text.replace(f, f[0] + f[2:-2] + f[-1])
+    text = text.replace("' s", "'s").replace(" 's", "'s")
+    text = text.strip()
+    return text
+
+
+def postprocess(ref, hyp, language, is_multiple_ref=False, detokenize_after=False, tokenize_after=False, lower=False):
+    if is_multiple_ref:
+        reference_sents = ref.split(" s_s ")
+        decoded_sents = hyp.split("s_s")
+        hyp = [w.replace('[SEP]', '.').strip() for w in decoded_sents]
+        ref = [w.replace('[SEP]', '.').strip() for w in reference_sents]
+        assert len(hyp) == 1
+        hyp = hyp[0]
+    else:
+        assert type(ref) == str
+        ref = [ref]
+    
+    ref = [x.strip().replace('\xa0', ' ') for x in ref]
+    hyp = hyp.strip().replace('[SEP]', '.').replace('\xa0', ' ')
+
+    if detokenize_after:
+        hyp = punct_detokenize(hyp)
+        ref = [punct_detokenize(x) for x in ref]
+
+    if tokenize_after:
+        if language == "ru":
+            hyp = " ".join([token.text for token in razdel.tokenize(hyp)])    
+            ref = [" ".join([token.text for token in razdel.tokenize(x)]) for x in ref]
+        else:
+            hyp = " ".join([token for token in nltk.word_tokenize(hyp)])
+            ref = [ " ".join([token for token in nltk.word_tokenize(x)]) for x in ref]
+
+    if lower:
+        hyp = hyp.lower()
+        ref = [x.lower() for x in ref]
+
+    return ref, hyp
 
 def calc_duplicate_n_grams_rate(documents):
     all_ngrams_count = Counter()
@@ -77,6 +133,10 @@ def print_metrics(refs, hyps, language, are_clusters_used=False):
             'V2 ROUGE-1-F': round(metrics['r1'] * 100.0, 2),
             'V2 ROUGE-2-F': round(metrics['r2'] * 100.0, 2),
             'V2 ROUGE-L-F': round(metrics['rl'] * 100.0, 2),
+
+            'Dup 1-grams': round(metrics["duplicate_ngrams"][1] * 100.0, 2),
+            'Dup 2-grams': round(metrics["duplicate_ngrams"][2] * 100.0, 2),
+            'Dup 3-grams': round(metrics["duplicate_ngrams"][3] * 100.0, 2),
         })
     else:
         wandb.run.summary.update({
