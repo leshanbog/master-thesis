@@ -15,6 +15,11 @@ from custom_datasets import LentaRiaDataset
 from models.bottleneck_encoder_decoder import BottleneckEncoderDecoderModel
 from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
+def reader(path):
+    with open(path, 'r') as f:
+        for line in f:
+            yield json.loads(line.strip())
+
 
 def train_gen_title(
     run_name: str,

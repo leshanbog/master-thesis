@@ -21,6 +21,7 @@ def reader(path):
         for line in f:
             yield json.loads(line.strip())
 
+
 def train_gen_title(
     run_name: str,
     config_file: str,
@@ -139,6 +140,57 @@ def train_gen_title(
         train_size = int(0.99 * len(full_dataset))
         train_dataset, val_dataset = torch.utils.data.random_split(full_dataset,
                                                                    [train_size, len(full_dataset) - train_size])
+    elif dataset_type == 'clusters':
+        with open(train_file, 'r') as f:
+            records = [json.loads(x.strip()) for x in f.readlines()]
+
+        lenta_records = [{'title': x['lenta_title'], 'text': x['lenta_text']} for x in records]
+        ria_records = [{'title': x['ria_title'], 'text': x['ria_text']} for x in records]
+        n1 = int(0.98 * len(lenta_records))
+        n2 = int(0.98 * len(ria_records))
+        train_records = lenta_records[:n1] + ria_records[:n2]
+        val_records = lenta_records[n1:] + ria_records[n2:]
+
+        train_dataset = GenTitleDataset(
+            train_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+
+        val_dataset = GenTitleDataset(
+            val_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+    elif dataset_type == 'baseline-ria':
+        with open(train_file, 'r') as f:
+            records = [json.loads(x.strip()) for x in f.readlines()]
+        ria_records = [{'title': x['ria_title'], 'text': x['ria_text']} for x in records]
+        train_records = ria_records[:int(0.97 * len(ria_records))]
+        val_records = ria_records[int(0.97 * len(ria_records)):]
+        train_dataset = GenTitleDataset(
+            train_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+
+        val_dataset = GenTitleDataset(
+            val_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+        
+    elif dataset_type == 'baseline-lenta':
+        with open(train_file, 'r') as f:
+            records = [json.loads(x.strip()) for x in f.readlines()]
+        lenta_records = [{'title': x['lenta_title'], 'text': x['lenta_text']} for x in records]
+        train_records = lenta_records[:int(0.97 * len(lenta_records))]
+        val_records = lenta_records[int(0.97 * len(lenta_records)):]        
+        train_dataset = GenTitleDataset(
+            train_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
+
+        val_dataset = GenTitleDataset(
+            val_records, tokenizer,
+            max_tokens_text=max_tokens_text, max_tokens_title=max_tokens_title
+        )
 
     wandb.summary.update({
         'Train dataset size': len(train_dataset),
@@ -170,7 +222,7 @@ def train_gen_title(
         logging_steps=logging_steps,
         save_steps=save_steps,
         eval_steps=eval_steps,
-        save_total_limit=2,
+        save_total_limit=1,
         max_steps=max_steps,
         report_to='wandb',
     )
@@ -193,7 +245,8 @@ if __name__ == "__main__":
     parser.add_argument("--config-file", type=str, required=True)
     parser.add_argument("--train-file", type=str, required=True)
     parser.add_argument("--val-file", type=str, required=False)
-    parser.add_argument("--dataset-type", type=str, choices=('ria', 'tg', 'lenta-ria'), default='ria')
+    parser.add_argument("--dataset-type", type=str, 
+        choices=('ria', 'tg', 'lenta-ria', 'clusters', 'baseline-ria', 'baseline-lenta'), default='ria')
     parser.add_argument("--train-sample-rate", type=float, default=1.0)
     parser.add_argument("--val-sample-rate", type=float, default=1.0)
     parser.add_argument("--output-model-path", type=str, required=True)

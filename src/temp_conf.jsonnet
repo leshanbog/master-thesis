@@ -1,5 +1,5 @@
 {
-    "tokenizer_model_path": "./bert_ft_on_tg_text/checkpoint-2000/",
+    "tokenizer_model_path": "/home/aobuhtijarov/models/rubert_cased_L-12_H-768_A-12_pt/",
     "agency_list": ["РИА Новости", "lenta.ru"],
     "max_tokens_text": 250,
     "max_tokens_title": 48,
