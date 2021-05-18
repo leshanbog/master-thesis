@@ -15,6 +15,12 @@ from custom_datasets import AgencyTitleDatasetClassification, LentaRiaDatasetCla
 from utils.training_utils import get_separate_lr_optimizer, init_wandb
 
 
+def reader(path):
+    with open(path, 'r') as f:
+        for line in f:
+            yield json.loads(line.strip())
+
+
 def compute_metrics(pred):
     labels = pred.label_ids
     preds = pred.predictions.argmax(-1)
@@ -65,10 +71,27 @@ def train_discriminator(
             [r for r in tqdm.tqdm(ria_reader(os.path.join(train_file, 'ria/ria.shuffled.val.json')))]
         )
 
-        random.shuffle(ria_records)
+        records = [r for r in reader('/home/aobuhtijarov/datasets/full_lenta_ria.test.jsonl')]
 
-        all_records = [r for r in lenta_records if r['date'][:4] in ['2010', '2011', '2012', '2013', '2014']] + \
-            ria_records[:220000]
+        filter_lenta = [
+            {'text': r['lenta_text'], 'title': r['lenta_title'], 'agency': 'lenta.ru', 'date': r['lenta_date']} 
+            for r in records
+        ]
+
+        filter_ria = [
+            {'text': r['ria_text'], 'title': r['ria_title'], 'agency': 'РИА Новости', 'date': r['lenta_date']} 
+            for r in records
+        ]
+
+        lenta_filter_titles = set(x['title'] for x in filter_lenta)
+        ria_filter_titles = set(x['title'] for x in filter_ria)
+        lenta_records = [r for r in lenta_records if r['title'] not in lenta_filter_titles]
+        ria_records = [r for r in ria_records if r['title'] not in ria_filter_titles]
+        
+        random.shuffle(ria_records)
+        lenta_records = [r for r in lenta_records if r['date'][:4] in ['2010', '2011', '2012', '2013', '2014']]
+
+        all_records = lenta_records + ria_records[:len(lenta_records)]
 
         random.shuffle(all_records)
         full_dataset = AgencyTitleDatasetClassification(
