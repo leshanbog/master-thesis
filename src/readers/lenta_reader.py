@@ -1,7 +1,6 @@
 import csv
 from .text_normalizer import normalize
 
-
 def lenta_reader(path):
     with open(path, "r", encoding="utf-8") as r:
         reader = csv.reader(r, delimiter=",", quotechar='"')

@@ -2,7 +2,6 @@ from bs4 import BeautifulSoup
 import json
 from .text_normalizer import normalize
 
-
 def ria_reader(path):
     with open(path, "r", encoding="utf-8") as r:
         for line in r:
@@ -34,7 +33,6 @@ months = [' янв', ' фев', ' мар', ' апр', ' мая', ' июн', ' и
 dates = [str(i) for i in range(1, 32)]
 
 def ria_date_from_text(text):
-
     try:
         a = text[:70].split('риа новости')[0].split(', ')[1]
 

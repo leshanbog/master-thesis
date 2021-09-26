@@ -57,8 +57,6 @@ def train_gen_title(
         dec_model_path = config["dec_model_path"]
         model = cls.from_encoder_decoder_pretrained(enc_model_path, dec_model_path)
 
-    # print("Model: ")
-    # print(model)
     model.cuda()
 
     if dataset_type == 'ria':
